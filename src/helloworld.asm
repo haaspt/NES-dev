@@ -36,13 +36,13 @@ load_sprites:
   LDA sprites,X
   STA $0200,X
   INX
-  CPX #$10
+  CPX #$28
   BNE load_sprites
 
 vblankwait:
   BIT PPUSTATUS
   BPL vblankwait
-  LDA #%10010000 ; turn on NMI, sprites use first palette table
+  LDA #%10011000 ; turn on NMI, sprites use first palette table
   STA PPUCTRL
   LDA #%00011110 ; turn on screen
   STA PPUMASK
@@ -54,10 +54,19 @@ forever:
 palettes:
 .byte $ff, $19, $09, $0f
 sprites:
-.byte $70, $05, $00, $80
-.byte $70, $06, $00, $88
-.byte $78, $07, $00, $80
-.byte $78, $08, $00, $88
+.byte $70, $0b, $00, $72
+.byte $70, $08, $00, $7a
+.byte $70, $0f, $00, $82
+.byte $70, $0f, $00, $8a
+.byte $70, $12, $00, $92
+.byte $70, $12, $00, $92
+
+.byte $78, $04, $00, $72
+.byte $78, $0f, $00, $7a
+.byte $78, $0f, $00, $82
+.byte $78, $1c, $00, $8a
+ 
+
 
 .segment "VECTORS"
 .addr nmi_hander, reset_handler, irq_handler
