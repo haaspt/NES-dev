@@ -36,7 +36,7 @@ load_sprites:
   LDA sprites,X
   STA $0200,X
   INX
-  CPX #$04
+  CPX #$10
   BNE load_sprites
 
 vblankwait:
@@ -52,9 +52,12 @@ forever:
 
 .segment "RODATA"
 palettes:
-.byte $29, $19, $09, $0f
+.byte $ff, $19, $09, $0f
 sprites:
 .byte $70, $05, $00, $80
+.byte $70, $06, $00, $88
+.byte $78, $07, $00, $80
+.byte $78, $08, $00, $88
 
 .segment "VECTORS"
 .addr nmi_hander, reset_handler, irq_handler
