@@ -23,6 +23,9 @@ clear_loop:
   INX
   CPX #$00
   BNE clear_loop
+
+  LDX #$FF  ; reset stack pointer
+  TXS
 vblankwait:
   BIT PPUSTATUS
   BPL vblankwait
