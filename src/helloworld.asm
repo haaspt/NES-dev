@@ -18,6 +18,13 @@
 
 .export main
 .proc main
+  LDY #$00
+load_sprites:
+  LDA sprites, X
+  STA $0200, X
+  INX
+  CPX #$10
+  BNE load_sprites
 
   LDX PPUSTATUS
   ; write palette
@@ -62,7 +69,7 @@ load_background:
 vblankwait:
   BIT PPUSTATUS
   BPL vblankwait
-  LDA #%10011000 ; turn on NMI, sprites use first palette table
+  LDA #%10010000 ; turn on NMI, sprites use first palette table
   STA PPUCTRL
   LDA #%00011110 ; turn on screen
   STA PPUMASK
@@ -71,6 +78,12 @@ forever:
 .endproc
 
 .segment "RODATA"
+sprites:
+.byte $80, $05, $06, $80
+.byte $80, $06, $06, $88
+.byte $88, $07, $06, $80
+.byte $88, $08, $06, $88
+
 palettes:
 .incbin "./graphics/bg_palette.pal"
 .incbin "./graphics/sp_palette.pal"
