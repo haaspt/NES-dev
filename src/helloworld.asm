@@ -18,6 +18,7 @@
 
 .export main
 .proc main
+
   LDX PPUSTATUS
   ; write palette
   LDX #$3f
@@ -31,13 +32,32 @@ load_palettes:
   CPX #$20
   BNE load_palettes
 
+  LDA #$00
+  STA $20
+  STA $21
+
+  LDX PPUSTATUS
+  ; write background
+  LDA #$20
+  STA PPUADDR
+  LDA #$00
+  STA PPUADDR
+  LDY #$00
   LDX #$00
-load_sprites:
-  LDA sprites,X
-  STA $0200,X
+  LDA #<nametable
+  STA $20
+  LDA #>nametable
+  STA $21
+load_background:
+  LDA ($20), Y
+  STA PPUDATA
+  INY
+  CPY #$00
+  BNE load_background
+  INC $21
   INX
-  CPX #$30
-  BNE load_sprites
+  CPX #$04
+  BNE load_background
 
 vblankwait:
   BIT PPUSTATUS
@@ -54,22 +74,9 @@ forever:
 palettes:
 .incbin "./graphics/bg_palette.pal"
 .incbin "./graphics/sp_palette.pal"
-
-sprites:
-.byte $70, $0b, $01, $72
-.byte $70, $08, $01, $7a
-.byte $70, $0f, $01, $82
-.byte $70, $0f, $01, $8a
-.byte $70, $12, $01, $92
-.byte $70, $2D, $01, $9a
-
-.byte $79, $04, $03, $72
-.byte $79, $0f, $03, $7a
-.byte $79, $0f, $03, $82
-.byte $79, $1c, $03, $8a
-.byte $79, $28, $03, $92
  
-
+nametable:
+.incbin "./graphics/bg_nametable.nam"
 
 .segment "VECTORS"
 .addr nmi_hander, reset_handler, irq_handler
