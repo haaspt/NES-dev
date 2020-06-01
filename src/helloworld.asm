@@ -2,6 +2,7 @@
 .include "header.inc"
 
 .segment "CODE"
+
 .proc irq_handler
   RTI
 .endproc
@@ -11,6 +12,10 @@
   STA OAMADDR
   LDA #$02
   STA OAMDMA
+  ; Reset gamestate update flag
+  LDA #$01
+  EOR GAMESTATE
+  STA GAMESTATE
   RTI
 .endproc
 
@@ -18,10 +23,23 @@
 
 .export main
 .proc main
+  ; Gamestate status flags
+  ; ---- ---U
+  ; |||| ||||
+  ; |||| |||+- Gamestate updated
+  ; |||| ||+-- Undef
+  ; |||| |+--- Undef
+  ; |||| +---- Undef
+  ; ||++------ Undef
+  ; |+-------- Undef
+  ; +--------- Undef
+  LDA #%00000000
+  STA GAMESTATE
+
   LDY #$00
 load_sprites:
   LDA sprites, X
-  STA $0200, X
+  STA SPRITETAB, X
   INX
   CPX #$10
   BNE load_sprites
@@ -74,6 +92,25 @@ vblankwait:
   LDA #%00011110 ; turn on screen
   STA PPUMASK
 forever:
+  LDA GAMESTATE
+  ADC #$01
+  BCC player_pos_update
+  JMP forever
+
+player_pos_update:
+  LDA #$01
+  EOR GAMESTATE
+  STA GAMESTATE
+  LDY #$00
+  LDX #$00
+pos_loop:
+  INC SPRITETAB, X
+  TXA
+  ADC #$04
+  TAX
+  INY
+  CPY #$04
+  BNE pos_loop
   JMP forever
 .endproc
 
