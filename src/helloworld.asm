@@ -93,18 +93,22 @@ vblankwait:
   STA PPUMASK
 forever:
   LDA GAMESTATE
-  ADC #$01
-  BCC player_pos_update
+  AND #%00000001
+  CMP #$00000001 ; Think I can just use BIT here?
+  BEQ player_pos_update
   JMP forever
 
 player_pos_update:
-  LDA #$01
-  EOR GAMESTATE
+  ; Set gamestate flag to 0
+  ; This is hacky, need to fix
+  ; to use actual bit test
+  LDA #$00 
   STA GAMESTATE
   LDY #$00
   LDX #$00
 pos_loop:
-  INC SPRITETAB, X
+  CLC
+  DEC PLAYERLOC, X
   TXA
   ADC #$04
   TAX
@@ -116,10 +120,10 @@ pos_loop:
 
 .segment "RODATA"
 sprites:
-.byte $80, $05, $06, $80
-.byte $80, $06, $06, $88
-.byte $88, $07, $06, $80
-.byte $88, $08, $06, $88
+.byte $80, $05, $06, $76
+.byte $80, $06, $06, $7E
+.byte $88, $07, $06, $76
+.byte $88, $08, $06, $7E
 
 palettes:
 .incbin "./graphics/bg_palette.pal"
