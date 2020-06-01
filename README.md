@@ -22,6 +22,6 @@ The code and assets in this repo are mainly derived from Kevin Zurawel's excelle
 
 Built using the [cc65 compiler](https://cc65.github.io/).
 
-Original graphics data from Kevin Zurawel, further modified and layed out using (NESTool)[https://github.com/jpwhiting/nestool].
+Original graphics data from Kevin Zurawel, further modified and layed out using [NESTool](https://github.com/jpwhiting/nestool).
 
 Many thanks to the NES Dev wiki and developer community for tons of documentation and forum posts.
