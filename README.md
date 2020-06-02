@@ -17,8 +17,7 @@ Compilation requires the [cc65 compiler](https://github.com/cc65/cc65). Installa
 To generate a new `.nes` ROM run the following:
 
 ```bash
-chmod +x build.sh
-./build.sh
+make
 ```
 
 ## Credits
