@@ -4,7 +4,12 @@
 .zeropage
 gamestate: .res 1
 buttons: .res 1
-
+; playerstates:
+; 1 = Facing Up
+; 2 = Facing Down
+; 3 = Facing Right
+; 4 = Facing Left
+playerstate: .res 1
 
 .segment "CODE"
 
@@ -132,6 +137,27 @@ update:
   STA gamestate 
   LDY #$00
   LDX #$00
+  LDA buttons
+  AND #%00001000 ; bitmask all but Up
+  BNE move_up
+  LDA buttons
+  AND #%00000100 ; bitmask all but Down
+  BNE move_down
+  RTS
+
+move_down:
+@loop:
+  CLC
+  INC PLAYERLOC, X
+  TXA
+  ADC #$04
+  TAX
+  INY
+  CPY #$04
+  BNE @loop
+  RTS
+
+move_up:
 @loop:
   CLC
   DEC PLAYERLOC, X
