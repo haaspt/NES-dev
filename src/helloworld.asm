@@ -29,9 +29,9 @@ buttons: .res 1
 .export main
 .proc main
   ; Gamestate status flags
-  ; ---- --Iu
+  ; ---- --IU
   ; |||| ||||
-  ; |||| |||+- Gamestate updated
+  ; |||| |||+- Gamestate update pending
   ; |||| ||+-- Input registered
   ; |||| |+--- Undef
   ; |||| +---- Undef
@@ -127,8 +127,9 @@ player_pos_update:
   BNE update
   RTS
 update:
-  LDA #$00 
-  STA gamestate
+  LDA #$01
+  EOR gamestate ; flip gamestate update flag off
+  STA gamestate 
   LDY #$00
   LDX #$00
 @loop:
