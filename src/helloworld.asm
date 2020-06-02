@@ -99,8 +99,7 @@ vblankwait:
 forever:
   LDA gamestate
   AND #%00000001
-  CMP #$00000001 ; Think I can just use BIT here?
-  BNE no_update
+  BEQ no_update
   JSR player_pos_update
 no_update:
   JMP forever
