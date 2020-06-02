@@ -1,6 +1,11 @@
 .include "constants.inc"
 .include "header.inc"
 
+.zeropage
+gamestate: .res 1
+buttons: .res 1
+
+
 .segment "CODE"
 
 .proc irq_handler
@@ -14,8 +19,8 @@
   STA OAMDMA
   ; Reset gamestate update flag
   LDA #$01
-  EOR GAMESTATE
-  STA GAMESTATE
+  EOR gamestate
+  STA gamestate
   RTI
 .endproc
 
@@ -24,17 +29,17 @@
 .export main
 .proc main
   ; Gamestate status flags
-  ; ---- ---U
+  ; ---- --Iu
   ; |||| ||||
   ; |||| |||+- Gamestate updated
-  ; |||| ||+-- Undef
+  ; |||| ||+-- Input registered
   ; |||| |+--- Undef
   ; |||| +---- Undef
   ; ||++------ Undef
   ; |+-------- Undef
   ; +--------- Undef
   LDA #%00000000
-  STA GAMESTATE
+  STA gamestate
 
   LDY #$00
 load_sprites:
@@ -92,21 +97,42 @@ vblankwait:
   LDA #%00011110 ; turn on screen
   STA PPUMASK
 forever:
-  LDA GAMESTATE
+  LDA gamestate
   AND #%00000001
   CMP #$00000001 ; Think I can just use BIT here?
-  BEQ player_pos_update
+  BNE no_update
+  JSR player_pos_update
+no_update:
   JMP forever
+
+read_controller:
+  LDA #$01
+  STA JOYPAD1 ; begin contoller polling
+  STA buttons ; set to 1 for ring counter
+  LSR A ; shift #$01->#$00
+  STA JOYPAD1 ; stop controller polling
+@loop:
+  LDA JOYPAD1
+  LSR A ; bit 0 -> carry
+  ROL buttons ; carry -> bit 0; bit 7 -> carry
+  BCC @loop
+  RTS
 
 player_pos_update:
   ; Set gamestate flag to 0
   ; This is hacky, need to fix
   ; to use actual bit test
+  JSR read_controller
+  LDA buttons
+  ORA #%00000000 ; determine if any button pressed
+  BNE update
+  RTS
+update:
   LDA #$00 
-  STA GAMESTATE
+  STA gamestate
   LDY #$00
   LDX #$00
-pos_loop:
+@loop:
   CLC
   DEC PLAYERLOC, X
   TXA
@@ -114,8 +140,8 @@ pos_loop:
   TAX
   INY
   CPY #$04
-  BNE pos_loop
-  JMP forever
+  BNE @loop
+  RTS
 .endproc
 
 .segment "RODATA"
