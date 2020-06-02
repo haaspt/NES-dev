@@ -123,9 +123,6 @@ read_controller:
   RTS
 
 player_pos_update:
-  ; Set gamestate flag to 0
-  ; This is hacky, need to fix
-  ; to use actual bit test
   JSR read_controller
   LDA buttons
   ORA #%00000000 ; determine if any button pressed
