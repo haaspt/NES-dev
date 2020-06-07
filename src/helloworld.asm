@@ -229,17 +229,17 @@ move_left:
 
 .segment "RODATA"
 sprites:
-.byte $80, $05, $06, $76
-.byte $80, $06, $06, $7E
-.byte $88, $07, $06, $76
-.byte $88, $08, $06, $7E
+.byte $C0, $05, $06, $7F
+.byte $C0, $06, $06, $87
+.byte $C8, $07, $06, $7F
+.byte $C8, $08, $06, $87
 
 palettes:
 .incbin "./graphics/bg_palette.pal"
 .incbin "./graphics/sp_palette.pal"
  
 nametable:
-.incbin "./graphics/bg_nametable.nam"
+.incbin "./graphics/bg_starfield.nam"
 
 .segment "VECTORS"
 .addr nmi_hander, reset_handler, irq_handler
