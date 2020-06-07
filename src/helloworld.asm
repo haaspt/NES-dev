@@ -173,6 +173,11 @@ rightNotPressed:
 move_down:
   LDX #$00
   LDY #$00
+  ; Prevent screen wrap
+  LDA PL_Y
+  CMP #$DE  ; Effective bottom of screen ($06) + #$08px
+  BNE @loop
+  RTS
 @loop:
   CLC
   INC PLAYERLOC, X
@@ -187,6 +192,11 @@ move_down:
 move_up:
   LDX #$00
   LDY #$00
+  ; Prevent screen wrap
+  LDA PL_Y
+  CMP #$0E  ; Effective top of screen ($06) + #$08px
+  BNE @loop
+  RTS
 @loop:
   CLC
   DEC PLAYERLOC, X
@@ -201,6 +211,11 @@ move_up:
 move_right:
   LDX #$03
   LDY #$00
+  ; Prevent screen wrap
+  LDA PL_X
+  CMP #$F8 ; Right edge of screen ($FF) - #$08px
+  BNE @loop
+  RTS
 @loop:
   CLC
   INC PLAYERLOC, X
@@ -215,6 +230,11 @@ move_right:
 move_left:
   LDX #$03
   LDY #$00
+  ; Prevent screen wrap
+  LDA PL_X
+  CMP #$08 ; Left edge of screen ($00) + #$08px
+  BNE @loop
+  RTS
 @loop:
   CLC
   DEC PLAYERLOC, X

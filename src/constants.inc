@@ -7,9 +7,11 @@ PPUDATA     = $2007
 OAMADDR     = $2003
 OAMDMA      = $4014
 
-JOYPAD1 = $4016
-JOYPAD2 = $4017
+JOYPAD1     = $4016
+JOYPAD2     = $4017
 
 SPRITETAB   = $0200
 PLAYERLOC   = SPRITETAB
 
+PL_Y       = $020C ; player sprite center pt y
+PL_X       = $020F ; player sprite center pt x
