@@ -1,10 +1,13 @@
-all: helloworld.nes
+all: SpaceGame.nes
 
-helloworld.o: src/helloworld.asm
-	ca65 src/helloworld.asm
+main.o: src/main.asm
+	ca65 src/main.asm
 
 reset.o: src/reset.asm
 	ca65 src/reset.asm
 
-helloworld.nes: helloworld.o reset.o
-	ld65 src/*.o -C nes.cfg -o helloworld.nes
+SpaceGame.nes: main.o reset.o
+	ld65 src/*.o -C nes.cfg -o SpaceGame.nes
+
+clean:
+	rm src/*.o
