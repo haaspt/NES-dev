@@ -150,17 +150,24 @@ update:
   LDX #$00
   LDA buttons
   AND #%00001000 ; bitmask all but Up
-  BNE move_up
+  BEQ upNotPressed
+  JSR move_up
+upNotPressed:
   LDA buttons
   AND #%00000100 ; bitmask all but Down
-  BNE move_down
+  BEQ downNotPressed
+  JSR move_down
+downNotPressed:
   LDA buttons
   AND #%00000010 ; bitmask all but Left
-  BNE move_left
-  LDA buttons ; bitmask all but Right
-  AND #%00000001
-  BNE move_right
-
+  BEQ leftNotPressed
+  JSR move_left
+leftNotPressed:
+  LDA buttons
+  AND #%00000001 ; bitmask all but Right
+  BEQ rightNotPressed
+  JSR move_right
+rightNotPressed:
   RTS
 
 move_down:
