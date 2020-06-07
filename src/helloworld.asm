@@ -10,6 +10,7 @@ buttons: .res 1
 ; 3 = Facing Right
 ; 4 = Facing Left
 playerstate: .res 1
+scroll_y_pos: .res 1
 
 .segment "CODE"
 
@@ -18,6 +19,17 @@ playerstate: .res 1
 .endproc
 
 .proc nmi_hander
+  ; PPU Scroll
+  LDA #$00
+  STA PPUSCROLL
+  LDA scroll_y_pos
+  STA PPUSCROLL
+  CMP #$00
+  BNE @continue
+  LDA #$F0
+  STA scroll_y_pos
+@continue:
+  DEC scroll_y_pos
   LDA #$00
   STA OAMADDR
   LDA #$02
@@ -26,6 +38,7 @@ playerstate: .res 1
   LDA #$01
   EOR gamestate
   STA gamestate
+
   RTI
 .endproc
 
@@ -45,6 +58,7 @@ playerstate: .res 1
   ; +--------- Undef
   LDA #%00000000
   STA gamestate
+  STA scroll_y_pos
 
   LDY #$00
 load_sprites:
