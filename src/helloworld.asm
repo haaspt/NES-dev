@@ -154,9 +154,18 @@ update:
   LDA buttons
   AND #%00000100 ; bitmask all but Down
   BNE move_down
+  LDA buttons
+  AND #%00000010 ; bitmask all but Left
+  BNE move_left
+  LDA buttons ; bitmask all but Right
+  AND #%00000001
+  BNE move_right
+
   RTS
 
 move_down:
+  LDX #$00
+  LDY #$00
 @loop:
   CLC
   INC PLAYERLOC, X
@@ -169,6 +178,36 @@ move_down:
   RTS
 
 move_up:
+  LDX #$00
+  LDY #$00
+@loop:
+  CLC
+  DEC PLAYERLOC, X
+  TXA
+  ADC #$04
+  TAX
+  INY
+  CPY #$04
+  BNE @loop
+  RTS
+
+move_right:
+  LDX #$03
+  LDY #$00
+@loop:
+  CLC
+  INC PLAYERLOC, X
+  TXA
+  ADC #$04
+  TAX
+  INY
+  CPY #$04
+  BNE @loop
+  RTS
+
+move_left:
+  LDX #$03
+  LDY #$00
 @loop:
   CLC
   DEC PLAYERLOC, X
