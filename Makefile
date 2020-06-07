@@ -1,5 +1,7 @@
 all: SpaceGame.nes
 
+build: SpaceGame.nes
+
 main.o: src/main.asm
 	ca65 src/main.asm
 
