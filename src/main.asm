@@ -190,7 +190,6 @@ bullet_pos_update:
   BCS @continue
   DEX
   JSR despawn_entity
-  INX
   LDA #$00
   CMP #$00
   BEQ @iterate
@@ -340,7 +339,7 @@ despawn_entity:
   INX
   LDA objectAddressLookup, X
   STA freeObjectAddress + 1
-  LDY despawnIndex
+  LDY #$00
   LDA #$00
 @loop:
   STA (freeObjectAddress), Y
