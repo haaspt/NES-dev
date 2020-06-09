@@ -9,7 +9,7 @@ buttons: .res 1
 ; 2 = Facing Down
 ; 3 = Facing Right
 ; 4 = Facing Left
-playerstate: .res 1
+; playerstate: .res 1
 scroll_y_pos: .res 1
 cooldown: .res 1
 
@@ -23,6 +23,7 @@ cooldown: .res 1
 ; Byte 1: Sprite mem lobyte
 ; Byte 2: Sprite mem hibyte
 objectAddressLookup: .res 48
+freeObjectAddress: .res 2
 
 
 .segment "CODE"
@@ -147,6 +148,8 @@ forever:
   BEQ no_update
   JSR player_pos_update
   JSR bullet_pos_update
+  LDA #$00
+  STA gamestate
 no_update:
   JMP forever
 
@@ -164,13 +167,29 @@ read_controller:
   RTS
 
 bullet_pos_update:
-  LDX #$01
+  LDX #$00
+@loop:
+  LDA objectAddressLookup, X
+  CMP #$01 ; check if bullet
+  BEQ @found
+@iterate:
+  TXA
+  CLC
+  ADC #$03
+  TAX
+  CPX #$30 ; size of object table
+  BCC @loop
+  RTS
+@found:
+  INX
   LDA (objectAddressLookup, X)
+  CLC
   SBC #$02
   STA (objectAddressLookup, X)
+  DEX
   LDA #$00
-  STA gamestate
-  RTS
+  CMP #$00
+  BEQ @iterate
 
 player_pos_update:
   JSR read_controller
@@ -179,10 +198,6 @@ player_pos_update:
   BNE @continue
   RTS
 @continue:
-  ; Set gamestate updated flag
-  LDA #$01
-  EOR gamestate ; flip gamestate update flag off
-  STA gamestate 
   LDY #$00
   LDX #$00
 
@@ -301,21 +316,52 @@ handle_shoot:
   RTS
 
 spawn_bullet:
-  CLC
+  LDY #$01 ; seeking to spawn a bullet
+  JSR find_free_object_slot
+  LDA freeObjectAddress
+  CMP #$00
+  BNE @continue
+  RTS
+@continue:
   LDY #$00
   LDA PL_Y
-  SBC #$0A
-  STA (objectAddressLookup + 1), Y
+  SBC #$0A ; offset from player Y by 10px
+  STA (freeObjectAddress), Y
   INY
   LDA #$03 ; bullet sprite
-  STA (objectAddressLookup + 1), Y
+  STA (freeObjectAddress), Y
   INY
   LDA #$06 ; bullet pallet
-  STA (objectAddressLookup + 1), Y
+  STA (freeObjectAddress), Y
   INY
   LDA PL_X
-  SBC #$04
-  STA (objectAddressLookup + 1), Y
+  SBC #$04 ; offset from player X by 4px
+  STA (freeObjectAddress), Y
+  RTS
+
+find_free_object_slot:
+  LDX #$00
+@loop:
+  LDA objectAddressLookup, X
+  CMP #$00 ; check if free entity
+  BEQ @found
+  TXA
+  CLC
+  ADC #$03
+  TAX
+  CPX #$30 ; size of object table
+  BCC @loop
+  LDA #$00
+  STA freeObjectAddress
+  RTS
+@found:
+  STY objectAddressLookup, X ; desired object type stored in Y register
+  INX
+  LDA objectAddressLookup, X
+  STA freeObjectAddress
+  INX
+  LDA objectAddressLookup, X
+  STA freeObjectAddress + 1
   RTS
 
 initialize_object_table:
