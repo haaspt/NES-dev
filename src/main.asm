@@ -11,6 +11,11 @@ buttons: .res 1
 ; 4 = Facing Left
 playerstate: .res 1
 scroll_y_pos: .res 1
+cooldown: .res 1
+
+; dynamic object stuff
+objectAddressLookup: .res 32
+
 
 .segment "CODE"
 
@@ -30,15 +35,26 @@ scroll_y_pos: .res 1
   STA scroll_y_pos
 @continue:
   DEC scroll_y_pos
+
+  ; Perform DMA
   LDA #$00
   STA OAMADDR
   LDA #$02
   STA OAMDMA
+
   ; Reset gamestate update flag
   LDA #$01
   EOR gamestate
   STA gamestate
 
+  ; Cooldown tick
+  LDY cooldown
+  CPY #$00
+  BEQ @finish
+  DEY
+  STY cooldown
+
+@finish:
   RTI
 .endproc
 
@@ -108,6 +124,8 @@ load_background:
   CPX #$04
   BNE load_background
 
+  JSR initialize_object_table
+
 vblankwait:
   BIT PPUSTATUS
   BPL vblankwait
@@ -140,14 +158,21 @@ player_pos_update:
   JSR read_controller
   LDA buttons
   ORA #%00000000 ; determine if any button pressed
-  BNE update
+  BNE @continue
   RTS
-update:
+@continue:
+  ; Set gamestate updated flag
   LDA #$01
   EOR gamestate ; flip gamestate update flag off
   STA gamestate 
   LDY #$00
   LDX #$00
+
+  LDA buttons
+  AND #%11000000 ; bitmask all but A or B
+  BEQ shootNotPressed
+  JSR handle_shoot
+shootNotPressed:  
   LDA buttons
   AND #%00001000 ; bitmask all but Up
   BEQ upNotPressed
@@ -245,6 +270,54 @@ move_left:
   CPY #$04
   BNE @loop
   RTS
+
+handle_shoot:
+  LDA cooldown
+  CMP #$00
+  BEQ @continue
+  RTS
+@continue:
+  LDA #$20
+  STA cooldown
+  JSR spawn_bullet
+  RTS
+
+spawn_bullet:
+  CLC
+  LDY #$00
+  LDA PL_Y
+  SBC #$0A
+  STA (objectAddressLookup), Y
+  INY
+  LDA #$03 ; bullet sprite
+  STA (objectAddressLookup), Y
+  INY
+  LDA #$06 ; bullet pallet
+  STA (objectAddressLookup), Y
+  INY
+  LDA PL_X
+  SBC #$04
+  STA (objectAddressLookup), Y
+  RTS
+
+initialize_object_table:
+  ; initialize object address lookup
+  LDX #$00
+  LDA #$10 ; lowbyte
+  LDY #$02 ; highbyte
+@loop:
+  CLC
+  STA objectAddressLookup, X
+  INX
+  STY objectAddressLookup, X
+  INX
+  ADC #$04
+  CPX #$20
+  BNE @loop
+
+  RTS
+
+
 .endproc
 
 .segment "RODATA"
