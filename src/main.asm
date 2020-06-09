@@ -365,10 +365,10 @@ spawn_bullet:
   SBC #$0A ; offset from player Y by 10px
   STA (freeObjectAddress), Y
   INY
-  LDA #$03 ; bullet sprite
+  LDA #$0B ; bullet sprite
   STA (freeObjectAddress), Y
   INY
-  LDA #$06 ; bullet pallet
+  LDA #$05 ; bullet pallet
   STA (freeObjectAddress), Y
   INY
   LDA PL_X
