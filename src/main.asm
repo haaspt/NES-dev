@@ -9,8 +9,23 @@ buttons: .res 1
 ; 2 = Facing Down
 ; 3 = Facing Right
 ; 4 = Facing Left
-playerstate: .res 1
+; playerstate: .res 1
 scroll_y_pos: .res 1
+cooldown: .res 1
+
+; dynamic object stuff
+; Entity table
+; 16 x 3 bytes
+; Byte 0: Entity type
+; -- 00: inactive
+; -- 01: bullet
+; -- 02: enemy
+; Byte 1: Sprite mem lobyte
+; Byte 2: Sprite mem hibyte
+objectAddressLookup: .res 48
+freeObjectAddress: .res 2
+despawnIndex: .res 1
+
 
 .segment "CODE"
 
@@ -30,15 +45,26 @@ scroll_y_pos: .res 1
   STA scroll_y_pos
 @continue:
   DEC scroll_y_pos
+
+  ; Perform DMA
   LDA #$00
   STA OAMADDR
   LDA #$02
   STA OAMDMA
+
   ; Reset gamestate update flag
   LDA #$01
   EOR gamestate
   STA gamestate
 
+  ; Cooldown tick
+  LDY cooldown
+  CPY #$00
+  BEQ @finish
+  DEY
+  STY cooldown
+
+@finish:
   RTI
 .endproc
 
@@ -108,6 +134,8 @@ load_background:
   CPX #$04
   BNE load_background
 
+  JSR initialize_object_table
+
 vblankwait:
   BIT PPUSTATUS
   BPL vblankwait
@@ -120,6 +148,9 @@ forever:
   AND #%00000001
   BEQ no_update
   JSR player_pos_update
+  JSR bullet_pos_update
+  LDA #$00
+  STA gamestate
 no_update:
   JMP forever
 
@@ -136,18 +167,56 @@ read_controller:
   BCC @loop
   RTS
 
+bullet_pos_update:
+  LDX #$00
+@loop:
+  LDA objectAddressLookup, X
+  CMP #$01 ; check if bullet
+  BEQ @found
+@iterate:
+  TXA
+  CLC
+  ADC #$03
+  TAX
+  CPX #$30 ; size of object table
+  BCC @loop
+  RTS
+@found:
+  INX
+  LDA (objectAddressLookup, X)
+  ; check if bullet needs to be despawned
+  CLC
+  CMP #$03
+  BCS @continue
+  DEX
+  JSR despawn_entity
+  LDA #$00
+  CMP #$00
+  BEQ @iterate
+@continue:
+  CLC
+  SBC #$02
+  STA (objectAddressLookup, X)
+  DEX
+  LDA #$00
+  CMP #$00
+  BEQ @iterate
+
 player_pos_update:
   JSR read_controller
   LDA buttons
   ORA #%00000000 ; determine if any button pressed
-  BNE update
+  BNE @continue
   RTS
-update:
-  LDA #$01
-  EOR gamestate ; flip gamestate update flag off
-  STA gamestate 
+@continue:
   LDY #$00
   LDX #$00
+
+  LDA buttons
+  AND #%11000000 ; bitmask all but A or B
+  BEQ shootNotPressed
+  JSR handle_shoot
+shootNotPressed:  
   LDA buttons
   AND #%00001000 ; bitmask all but Up
   BEQ upNotPressed
@@ -245,6 +314,114 @@ move_left:
   CPY #$04
   BNE @loop
   RTS
+
+handle_shoot:
+  LDA cooldown
+  CMP #$00
+  BEQ @continue
+  RTS
+@continue:
+  LDA #$10
+  STA cooldown
+  JSR spawn_bullet
+  RTS
+
+despawn_entity:
+  ; X register set with table offset before subroutine call
+  STX despawnIndex ; store original index to tmp
+  LDY #$00
+  ; change entity status
+  LDA #$00
+  STA objectAddressLookup, X
+  INX
+  LDA objectAddressLookup, X
+  STA freeObjectAddress
+  INX
+  LDA objectAddressLookup, X
+  STA freeObjectAddress + 1
+  LDY #$00
+  LDA #$00
+@loop:
+  STA (freeObjectAddress), Y
+  INY
+  CPY #$04
+  BNE @loop
+  LDA #$00
+  STA freeObjectAddress
+  STA freeObjectAddress + 1
+  LDX despawnIndex ; reload original index from tmp
+  RTS
+
+spawn_bullet:
+  LDY #$01 ; seeking to spawn a bullet
+  JSR find_free_object_slot
+  LDA freeObjectAddress
+  CMP #$00
+  BNE @continue
+  RTS
+@continue:
+  LDY #$00
+  LDA PL_Y
+  SBC #$0A ; offset from player Y by 10px
+  STA (freeObjectAddress), Y
+  INY
+  LDA #$03 ; bullet sprite
+  STA (freeObjectAddress), Y
+  INY
+  LDA #$06 ; bullet pallet
+  STA (freeObjectAddress), Y
+  INY
+  LDA PL_X
+  SBC #$04 ; offset from player X by 4px
+  STA (freeObjectAddress), Y
+  RTS
+
+find_free_object_slot:
+  LDX #$00
+@loop:
+  LDA objectAddressLookup, X
+  CMP #$00 ; check if free entity
+  BEQ @found
+  TXA
+  CLC
+  ADC #$03
+  TAX
+  CPX #$30 ; size of object table
+  BCC @loop
+  LDA #$00
+  STA freeObjectAddress
+  RTS
+@found:
+  STY objectAddressLookup, X ; desired object type stored in Y register
+  INX
+  LDA objectAddressLookup, X
+  STA freeObjectAddress
+  INX
+  LDA objectAddressLookup, X
+  STA freeObjectAddress + 1
+  RTS
+
+initialize_object_table:
+  ; initialize object address lookup
+  LDX #$00
+  LDA #$10 ; lowbyte
+@loop:
+  LDY #$00 ; all entities start inactive
+  STY objectAddressLookup, x
+  INX
+  STA objectAddressLookup, X
+  INX
+  LDY #$02 ; sprite table hibyte
+  STY objectAddressLookup, X
+  INX
+  CLC
+  ADC #$04
+  CPX #$30
+  BNE @loop
+
+  RTS
+
+
 .endproc
 
 .segment "RODATA"
