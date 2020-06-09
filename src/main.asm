@@ -24,6 +24,7 @@ cooldown: .res 1
 ; Byte 2: Sprite mem hibyte
 objectAddressLookup: .res 48
 freeObjectAddress: .res 2
+despawnIndex: .res 1
 
 
 .segment "CODE"
@@ -183,6 +184,17 @@ bullet_pos_update:
 @found:
   INX
   LDA (objectAddressLookup, X)
+  ; check if bullet needs to be despawned
+  CLC
+  CMP #$03
+  BCS @continue
+  DEX
+  JSR despawn_entity
+  INX
+  LDA #$00
+  CMP #$00
+  BEQ @iterate
+@continue:
   CLC
   SBC #$02
   STA (objectAddressLookup, X)
@@ -310,9 +322,35 @@ handle_shoot:
   BEQ @continue
   RTS
 @continue:
-  LDA #$20
+  LDA #$10
   STA cooldown
   JSR spawn_bullet
+  RTS
+
+despawn_entity:
+  ; X register set with table offset before subroutine call
+  STX despawnIndex ; store original index to tmp
+  LDY #$00
+  ; change entity status
+  LDA #$00
+  STA objectAddressLookup, X
+  INX
+  LDA objectAddressLookup, X
+  STA freeObjectAddress
+  INX
+  LDA objectAddressLookup, X
+  STA freeObjectAddress + 1
+  LDY despawnIndex
+  LDA #$00
+@loop:
+  STA (freeObjectAddress), Y
+  INY
+  CPY #$04
+  BNE @loop
+  LDA #$00
+  STA freeObjectAddress
+  STA freeObjectAddress + 1
+  LDX despawnIndex ; reload original index from tmp
   RTS
 
 spawn_bullet:
@@ -369,7 +407,6 @@ initialize_object_table:
   LDX #$00
   LDA #$10 ; lowbyte
 @loop:
-  CLC
   LDY #$00 ; all entities start inactive
   STY objectAddressLookup, x
   INX
@@ -378,6 +415,7 @@ initialize_object_table:
   LDY #$02 ; sprite table hibyte
   STY objectAddressLookup, X
   INX
+  CLC
   ADC #$04
   CPX #$30
   BNE @loop
