@@ -164,7 +164,12 @@ read_controller:
   RTS
 
 bullet_pos_update:
-  NOP
+  LDX #$01
+  LDA (objectAddressLookup, X)
+  SBC #$02
+  STA (objectAddressLookup, X)
+  LDA #$00
+  STA gamestate
   RTS
 
 player_pos_update:
