@@ -14,7 +14,15 @@ scroll_y_pos: .res 1
 cooldown: .res 1
 
 ; dynamic object stuff
-objectAddressLookup: .res 32
+; Entity table
+; 16 x 3 bytes
+; Byte 0: Entity type
+; -- 00: inactive
+; -- 01: bullet
+; -- 02: enemy
+; Byte 1: Sprite mem lobyte
+; Byte 2: Sprite mem hibyte
+objectAddressLookup: .res 48
 
 
 .segment "CODE"
@@ -138,6 +146,7 @@ forever:
   AND #%00000001
   BEQ no_update
   JSR player_pos_update
+  JSR bullet_pos_update
 no_update:
   JMP forever
 
@@ -152,6 +161,10 @@ read_controller:
   LSR A ; bit 0 -> carry
   ROL buttons ; carry -> bit 0; bit 7 -> carry
   BCC @loop
+  RTS
+
+bullet_pos_update:
+  NOP
   RTS
 
 player_pos_update:
@@ -287,32 +300,35 @@ spawn_bullet:
   LDY #$00
   LDA PL_Y
   SBC #$0A
-  STA (objectAddressLookup), Y
+  STA (objectAddressLookup + 1), Y
   INY
   LDA #$03 ; bullet sprite
-  STA (objectAddressLookup), Y
+  STA (objectAddressLookup + 1), Y
   INY
   LDA #$06 ; bullet pallet
-  STA (objectAddressLookup), Y
+  STA (objectAddressLookup + 1), Y
   INY
   LDA PL_X
   SBC #$04
-  STA (objectAddressLookup), Y
+  STA (objectAddressLookup + 1), Y
   RTS
 
 initialize_object_table:
   ; initialize object address lookup
   LDX #$00
   LDA #$10 ; lowbyte
-  LDY #$02 ; highbyte
 @loop:
   CLC
+  LDY #$00 ; all entities start inactive
+  STY objectAddressLookup, x
+  INX
   STA objectAddressLookup, X
   INX
+  LDY #$02 ; sprite table hibyte
   STY objectAddressLookup, X
   INX
   ADC #$04
-  CPX #$20
+  CPX #$30
   BNE @loop
 
   RTS
