@@ -87,12 +87,12 @@ despawnIndex: .res 1
   STA scroll_y_pos
 
   LDY #$00
-load_sprites:
-  LDA sprites, X
+load_player_sprites:
+  LDA player_sprites, X
   STA SPRITETAB, X
   INX
   CPX #$10
-  BNE load_sprites
+  BNE load_player_sprites
 
   LDX PPUSTATUS
   ; write palette
@@ -365,10 +365,10 @@ spawn_bullet:
   SBC #$0A ; offset from player Y by 10px
   STA (freeObjectAddress), Y
   INY
-  LDA #$0B ; bullet sprite
+  LDA bullet_sprites + 1 ; bullet sprite
   STA (freeObjectAddress), Y
   INY
-  LDA #$05 ; bullet pallet
+  LDA bullet_sprites + 2 ; bullet pallet
   STA (freeObjectAddress), Y
   INY
   LDA PL_X
@@ -425,11 +425,14 @@ initialize_object_table:
 .endproc
 
 .segment "RODATA"
-sprites:
+player_sprites:
 .byte $C0, $05, $06, $7F
 .byte $C0, $06, $06, $87
 .byte $C8, $07, $06, $7F
 .byte $C8, $08, $06, $87
+
+bullet_sprites:
+.byte $00, $0B, $05, $00
 
 palettes:
 .incbin "./graphics/bg_palette.pal"
