@@ -11,7 +11,7 @@ buttons: .res 1
 ; 4 = Facing Left
 ; playerstate: .res 1
 scroll_y_pos: .res 1
-cooldown: .res 1
+gun_cooldown_timer: .res 1
 
 ; dynamic object stuff
 ; Entity table
@@ -58,11 +58,11 @@ despawnIndex: .res 1
   STA gamestate
 
   ; Cooldown tick
-  LDY cooldown
+  LDY gun_cooldown_timer
   CPY #$00
   BEQ @finish
   DEY
-  STY cooldown
+  STY gun_cooldown_timer
 
 @finish:
   RTI
@@ -316,13 +316,13 @@ move_left:
   RTS
 
 handle_shoot:
-  LDA cooldown
+  LDA gun_cooldown_timer
   CMP #$00
   BEQ @continue
   RTS
 @continue:
   LDA #$10
-  STA cooldown
+  STA gun_cooldown_timer
   JSR spawn_bullet
   RTS
 
