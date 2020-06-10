@@ -11,7 +11,7 @@ buttons: .res 1
 ; 4 = Facing Left
 ; playerstate: .res 1
 scroll_y_pos: .res 1
-cooldown: .res 1
+gun_cooldown_timer: .res 1
 
 ; dynamic object stuff
 ; Entity table
@@ -58,11 +58,11 @@ despawnIndex: .res 1
   STA gamestate
 
   ; Cooldown tick
-  LDY cooldown
+  LDY gun_cooldown_timer
   CPY #$00
   BEQ @finish
   DEY
-  STY cooldown
+  STY gun_cooldown_timer
 
 @finish:
   RTI
@@ -87,12 +87,12 @@ despawnIndex: .res 1
   STA scroll_y_pos
 
   LDY #$00
-load_sprites:
-  LDA sprites, X
+load_player_sprites:
+  LDA player_sprites, X
   STA SPRITETAB, X
   INX
   CPX #$10
-  BNE load_sprites
+  BNE load_player_sprites
 
   LDX PPUSTATUS
   ; write palette
@@ -316,13 +316,13 @@ move_left:
   RTS
 
 handle_shoot:
-  LDA cooldown
+  LDA gun_cooldown_timer
   CMP #$00
   BEQ @continue
   RTS
 @continue:
   LDA #$10
-  STA cooldown
+  STA gun_cooldown_timer
   JSR spawn_bullet
   RTS
 
@@ -365,10 +365,10 @@ spawn_bullet:
   SBC #$0A ; offset from player Y by 10px
   STA (freeObjectAddress), Y
   INY
-  LDA #$03 ; bullet sprite
+  LDA bullet_sprites + 1 ; bullet sprite
   STA (freeObjectAddress), Y
   INY
-  LDA #$06 ; bullet pallet
+  LDA bullet_sprites + 2 ; bullet pallet
   STA (freeObjectAddress), Y
   INY
   LDA PL_X
@@ -425,11 +425,14 @@ initialize_object_table:
 .endproc
 
 .segment "RODATA"
-sprites:
+player_sprites:
 .byte $C0, $05, $06, $7F
 .byte $C0, $06, $06, $87
 .byte $C8, $07, $06, $7F
 .byte $C8, $08, $06, $87
+
+bullet_sprites:
+.byte $00, $0B, $05, $00
 
 palettes:
 .incbin "./graphics/bg_palette.pal"
