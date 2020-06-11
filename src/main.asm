@@ -28,6 +28,16 @@ objectAddressLookup: .res 48
 freeObjectAddress: .res 2
 despawnIndex: .res 1
 
+collisionEntityAPointer: .res 2
+collisionEntityBPointer: .res 2
+colXa: .res 2
+colXb: .res 2
+colYa: .res 2
+colYb: .res 2
+entitiesAreColliding: .res 1
+
+hitCount: .res 1 ;; tmp variable for collision detection development
+
 .segment "CODE"
 
 .proc irq_handler
@@ -490,9 +500,52 @@ initialize_object_table:
   ADC #$04
   CPX #$30
   BNE @loop
-
   RTS
 
+detect_collision:
+  LDY #$00
+  LDA (collisionEntityAPointer), Y
+  STA colXa
+  CLC
+  ADC  #$08
+  STA colXa + 1
+  LDA (collisionEntityBPointer), Y
+  STA colXb
+  CLC
+  ADC #$08
+  STA colXb + 1
+  LDY #$03
+  LDA (collisionEntityAPointer), Y
+  STA colYa
+  CLC
+  ADC #$08
+  STA colYa + 1
+  LDA (collisionEntityBPointer), Y
+  STA colYb
+  CLC
+  ADC #$08
+  STA colYb + 1
+
+  LDA colYb
+  CMP colYa + 1
+  BCS @no_overlap ;; yA2 <= yB1
+  LDA colYa
+  CMP colYb + 1
+  BCS @no_overlap ;; yB2 <= yA1
+  LDA colXb
+  CMP colXa + 1
+  BCS @no_overlap ;; xA2 <= xB1
+  LDA colXa
+  CMP colXb + 1
+  BCS @no_overlap ;; xB2 <= xA1
+  ;; Object are overlapping
+  LDA #$01
+  STA entitiesAreColliding
+  RTS
+@no_overlap:
+  LDA #$00
+  STA entitiesAreColliding
+  RTS
 
 .endproc
 
