@@ -28,13 +28,15 @@ objectAddressLookup: .res 48
 freeObjectAddress: .res 2
 despawnIndex: .res 1
 
-collisionEntityAPointer: .res 2
-collisionEntityBPointer: .res 2
-colXa: .res 2
-colXb: .res 2
-colYa: .res 2
-colYb: .res 2
-entitiesAreColliding: .res 1
+collisionEntityIndexes: .res 2 ; offsets i and j for scaning object table
+collisionEntityAPointer: .res 2 ; OAM pointer for entity "A"
+collisionEntityBPointer: .res 2 ; OAM pointer for entity "B"
+colXa: .res 2 ; X1 and X2 coords for entity A
+colXb: .res 2 ; X1 and X2 coords for entity B
+colYa: .res 2 ; Y1 and Y2 coords for entity A
+colYb: .res 2 ; Y1 and Y2 coords for entity B
+;; TODO: combine collision flag into gamestate byte?
+entitiesAreColliding: .res 1 ; Binary flag set by detect_collision subroutine
 
 hitCount: .res 1 ;; tmp variable for collision detection development
 
