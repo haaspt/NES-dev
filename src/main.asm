@@ -10,8 +10,10 @@ buttons: .res 1
 ; 3 = Facing Right
 ; 4 = Facing Left
 ; playerstate: .res 1
+
 scroll_y_pos: .res 1
 gun_cooldown_timer: .res 1
+enemy_spawn_timer: .res 1
 
 ; dynamic object stuff
 ; Entity table
@@ -25,7 +27,6 @@ gun_cooldown_timer: .res 1
 objectAddressLookup: .res 48
 freeObjectAddress: .res 2
 despawnIndex: .res 1
-
 
 .segment "CODE"
 
@@ -57,12 +58,19 @@ despawnIndex: .res 1
   EOR gamestate
   STA gamestate
 
-  ; Cooldown tick
+  ;; COOLDOWN TIMER TICKS
+timer_updates:
   LDY gun_cooldown_timer
+  CPY #$00
+  BEQ @next
+  DEY
+  STY gun_cooldown_timer
+@next:
+  LDY enemy_spawn_timer
   CPY #$00
   BEQ @finish
   DEY
-  STY gun_cooldown_timer
+  STY enemy_spawn_timer
 
 @finish:
   RTI
@@ -85,6 +93,9 @@ despawnIndex: .res 1
   LDA #%00000000
   STA gamestate
   STA scroll_y_pos
+
+  LDA #$7F
+  STA enemy_spawn_timer
 
   LDY #$00
 load_player_sprites:
@@ -147,8 +158,16 @@ forever:
   LDA gamestate
   AND #%00000001
   BEQ no_update
-  JSR player_pos_update
+  LDA enemy_spawn_timer
+  CMP #$00
+  BNE @no_enemy_spawn
+  JSR spawn_enemy
+  LDA #$7F
+  STA enemy_spawn_timer
+@no_enemy_spawn:
+  JSR handle_player_input
   JSR bullet_pos_update
+  JSR enemy_pos_update
   LDA #$00
   STA gamestate
 no_update:
@@ -167,6 +186,39 @@ read_controller:
   BCC @loop
   RTS
 
+enemy_pos_update:
+  LDX #$00
+@loop:
+  LDA objectAddressLookup, X
+  CMP #$02 ; check if enemy
+  BEQ @found
+@iterate:
+  TXA 
+  CLC
+  ADC #$03 ; size of table object
+  TAX
+  CPX #$30 ; size of object table
+  BCC @loop
+  RTS
+@found:
+  INX
+  LDA (objectAddressLookup, X)
+  ; check if enemy needs to be despawned
+  CLC
+  CMP #$DE
+  BCC @continue
+  DEX 
+  JSR despawn_entity
+  SEC
+  BCS @iterate
+@continue:
+  CLC
+  ADC #$02
+  STA (objectAddressLookup, X)
+  DEX
+  SEC
+  BCS @iterate
+
 bullet_pos_update:
   LDX #$00
 @loop:
@@ -176,7 +228,7 @@ bullet_pos_update:
 @iterate:
   TXA
   CLC
-  ADC #$03
+  ADC #$03 ; size of table object
   TAX
   CPX #$30 ; size of object table
   BCC @loop
@@ -200,7 +252,7 @@ bullet_pos_update:
   SEC
   BCS @iterate
 
-player_pos_update:
+handle_player_input:
   JSR read_controller
   LDA buttons
   ORA #%00000000 ; determine if any button pressed
@@ -350,6 +402,28 @@ despawn_entity:
   LDX despawnIndex ; reload original index from tmp
   RTS
 
+spawn_enemy:
+  LDY #$02 ; seeking to spawn an enemy
+  JSR find_free_object_slot
+  LDA freeObjectAddress
+  CMP #$00
+  BNE @continue
+  RTS
+@continue:
+  LDY #$00
+  LDA #$00 ; spawn enemy at top of screen
+  STA (freeObjectAddress), Y
+  INY
+  LDA enemy_sprite + 1
+  STA (freeObjectAddress), Y
+  INY
+  LDA enemy_sprite + 2
+  STA (freeObjectAddress), Y
+  INY
+  LDA PL_X ; spawn enemy at player X (for now)
+  STA (freeObjectAddress), Y
+  RTS
+
 spawn_bullet:
   LDY #$01 ; seeking to spawn a bullet
   JSR find_free_object_slot
@@ -363,10 +437,10 @@ spawn_bullet:
   SBC #$0A ; offset from player Y by 10px
   STA (freeObjectAddress), Y
   INY
-  LDA bullet_sprites + 1 ; bullet sprite
+  LDA bullet_sprite + 1 ; bullet sprite
   STA (freeObjectAddress), Y
   INY
-  LDA bullet_sprites + 2 ; bullet pallet
+  LDA bullet_sprite + 2 ; bullet pallet
   STA (freeObjectAddress), Y
   INY
   LDA PL_X
@@ -429,8 +503,16 @@ player_sprites:
 .byte $C8, $07, $06, $7F
 .byte $C8, $08, $06, $87
 
-bullet_sprites:
+bullet_sprite:
 .byte $00, $0B, $05, $00
+
+enemy_sprite:
+.byte $00, $0C, $07, $00
+
+big_enemy_sprites:
+.byte $00, $0D, $07, $00
+.byte $08, $0F, $07, $00
+.byte $10, $0E, $07, $00
 
 palettes:
 .incbin "./graphics/bg_palette.pal"
