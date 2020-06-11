@@ -28,6 +28,7 @@ objectAddressLookup: .res 48
 freeObjectAddress: .res 2
 despawnIndex: .res 1
 
+
 .segment "CODE"
 
 .proc irq_handler
@@ -40,7 +41,6 @@ despawnIndex: .res 1
   STA PPUSCROLL
   LDA scroll_y_pos
   STA PPUSCROLL
-  CMP #$00
   BNE @continue
   LDA #$F0
   STA scroll_y_pos
@@ -159,7 +159,6 @@ forever:
   AND #%00000001
   BEQ no_update
   LDA enemy_spawn_timer
-  CMP #$00
   BNE @no_enemy_spawn
   JSR spawn_enemy
   LDA #$7F
@@ -367,7 +366,6 @@ move_left:
 
 handle_shoot:
   LDA gun_cooldown_timer
-  CMP #$00
   BEQ @continue
   RTS
 @continue:
@@ -406,7 +404,6 @@ spawn_enemy:
   LDY #$02 ; seeking to spawn an enemy
   JSR find_free_object_slot
   LDA freeObjectAddress
-  CMP #$00
   BNE @continue
   RTS
 @continue:
@@ -428,7 +425,6 @@ spawn_bullet:
   LDY #$01 ; seeking to spawn a bullet
   JSR find_free_object_slot
   LDA freeObjectAddress
-  CMP #$00
   BNE @continue
   RTS
 @continue:
@@ -451,8 +447,7 @@ spawn_bullet:
 find_free_object_slot:
   LDX #$00
 @loop:
-  LDA objectAddressLookup, X
-  CMP #$00 ; check if free entity
+  LDA objectAddressLookup, X ; check if free entity
   BEQ @found
   TXA
   CLC
