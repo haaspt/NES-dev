@@ -190,17 +190,15 @@ bullet_pos_update:
   BCS @continue
   DEX
   JSR despawn_entity
-  LDA #$00
-  CMP #$00
-  BEQ @iterate
+  SEC
+  BCS @iterate
 @continue:
   CLC
   SBC #$02
   STA (objectAddressLookup, X)
   DEX
-  LDA #$00
-  CMP #$00
-  BEQ @iterate
+  SEC
+  BCS @iterate
 
 player_pos_update:
   JSR read_controller
