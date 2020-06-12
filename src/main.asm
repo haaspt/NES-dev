@@ -524,8 +524,6 @@ scan_for_bullet_collisions:
   BNE @outerLoop
   RTS
 @foundA:
-  LDA #$FF
-  STA $0102
   STX collisionEntityIndexes
   LDY #$00
 @innerLoop:
@@ -565,8 +563,6 @@ scan_for_bullet_collisions:
   JMP @outerIterate
 
 handle_collision:
-  LDA #$FF
-  STA $0100
   LDX collisionEntityIndexes
   JSR despawn_entity
   LDX collisionEntityIndexes + 1
@@ -576,8 +572,6 @@ handle_collision:
 
 detect_collision:
   ;; Load entity coords into memory
-  LDA #$FF
-  STA $0101
   LDY #$00
   LDA (collisionEntityAPointer), Y
   STA colXa
