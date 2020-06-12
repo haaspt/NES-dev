@@ -502,6 +502,7 @@ initialize_object_table:
   RTS
 
 scan_for_player_collisions:
+  ;; Store current player hitbox
   LDA PL_Y
   CLC
   SBC #$08
@@ -516,8 +517,10 @@ scan_for_player_collisions:
   CLC
   ADC #$10
   STA colXa + 1
+  ;; End store
   LDX #$00
 @loop:
+  ;; Search for active enemies
   LDA objectAddressLookup, X
   CMP #$02
   BEQ @found
@@ -537,7 +540,7 @@ scan_for_player_collisions:
   STA collisionEntityBPointer
   INX
   LDA objectAddressLookup, X
-  STA collisionEntityBPointer
+  STA collisionEntityBPointer + 1
   LDA (collisionEntityBPointer), Y
   CLC
   ADC #$01
