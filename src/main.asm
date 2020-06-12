@@ -533,13 +533,15 @@ scan_for_bullet_collisions:
   BNE @innerLoop
   JMP @outerIterate
 @foundB:
-  ;; TODO remove the EntityPointers, they're unneeded
   STY collisionEntityIndexes + 1
+  LDY #$00
   LDA collisionEntityIndexes
   TAX
   INX
   LDA objectAddressLookup, X
   STA collisionEntityAPointer
+  LDA (collisionEntityAPointer), Y ;; xA1
+
   INX
   LDA objectAddressLookup, X
   STA collisionEntityAPointer + 1
@@ -551,25 +553,8 @@ scan_for_bullet_collisions:
   INX
   LDA objectAddressLookup, X
   STA collisionEntityBPointer + 1
-  JSR detect_collision
-  LDA entitiesAreColliding
-  BEQ @noCollision
-  JSR handle_collision
-@noCollision:
-  LDX collisionEntityIndexes
-  JMP @outerIterate
 
-handle_collision:
-  LDX collisionEntityIndexes
-  JSR despawn_entity
-  LDX collisionEntityIndexes + 1
-  JSR despawn_entity
-  INC hitCount
-  RTS
-
-detect_collision:
   ;; Load entity coords into memory
-  STA $0100
   LDY #$00
   LDA (collisionEntityAPointer), Y
   SBC #$01
@@ -597,6 +582,23 @@ detect_collision:
   ADC #$06
   STA colYb + 1
 
+  JSR detect_collision
+  LDA entitiesAreColliding
+  BEQ @noCollision
+  JSR handle_collision
+@noCollision:
+  LDX collisionEntityIndexes
+  JMP @outerIterate
+
+handle_collision:
+  LDX collisionEntityIndexes
+  JSR despawn_entity
+  LDX collisionEntityIndexes + 1
+  JSR despawn_entity
+  INC hitCount
+  RTS
+
+detect_collision:
   ;; Rect. overlap checking
   LDA colYb
   CMP colYa + 1
