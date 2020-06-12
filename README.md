@@ -8,7 +8,7 @@ This project is my attempt to learn 6502 assembly for the NES.
 
 ## To Run
 
-Load `helloworld.nes` into your favorite NES emulator.
+Load `SpaceGame.nes` into your favorite NES emulator.
 
 ## To Build
 
