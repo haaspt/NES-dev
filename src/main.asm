@@ -533,6 +533,7 @@ scan_for_bullet_collisions:
   BNE @innerLoop
   JMP @outerIterate
 @foundB:
+  ;; TODO remove the EntityPointers, they're unneeded
   STY collisionEntityIndexes + 1
   LDA collisionEntityIndexes
   TAX
@@ -571,25 +572,29 @@ detect_collision:
   STA $0100
   LDY #$00
   LDA (collisionEntityAPointer), Y
+  SBC #$01
   STA colXa
   CLC
-  ADC  #$08
+  ADC  #$06
   STA colXa + 1
   LDA (collisionEntityBPointer), Y
+  SBC #$01
   STA colXb
   CLC
-  ADC #$08
+  ADC #$06
   STA colXb + 1
   LDY #$03
   LDA (collisionEntityAPointer), Y
+  SBC #$01
   STA colYa
   CLC
-  ADC #$08
+  ADC #$06
   STA colYa + 1
   LDA (collisionEntityBPointer), Y
+  SBC #$01
   STA colYb
   CLC
-  ADC #$08
+  ADC #$06
   STA colYb + 1
 
   ;; Rect. overlap checking
