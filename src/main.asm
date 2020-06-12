@@ -524,10 +524,12 @@ scan_for_bullet_collisions:
   BNE @outerLoop
   RTS
 @foundA:
+  LDA #$FF
+  STA $0102
   STX collisionEntityIndexes
   LDY #$00
 @innerLoop:
-  LDA collisionEntityIndexes, Y
+  LDA objectAddressLookup, Y
   CMP #$02
   BEQ @foundB
 @innerIterate:
@@ -540,10 +542,31 @@ scan_for_bullet_collisions:
   JMP @outerIterate
 @foundB:
   STY collisionEntityIndexes + 1
+  LDA collisionEntityIndexes
+  TAX
+  LDA objectAddressLookup, X
+  STA collisionEntityAPointer
+  INX
+  LDA objectAddressLookup, X
+  STA collisionEntityAPointer + 1
+  LDA collisionEntityIndexes + 1
+  TAX
+  LDA objectAddressLookup, X
+  STA collisionEntityBPointer
+  INX
+  LDA objectAddressLookup, X
+  STA collisionEntityBPointer + 1
+  JSR detect_collision
+  LDA entitiesAreColliding
+  BEQ @noCollision
   JSR handle_collision
+@noCollision:
+  LDX collisionEntityIndexes
   JMP @outerIterate
 
 handle_collision:
+  LDA #$FF
+  STA $0100
   LDX collisionEntityIndexes
   JSR despawn_entity
   LDX collisionEntityIndexes + 1
@@ -553,6 +576,8 @@ handle_collision:
 
 detect_collision:
   ;; Load entity coords into memory
+  LDA #$FF
+  STA $0101
   LDY #$00
   LDA (collisionEntityAPointer), Y
   STA colXa
