@@ -39,6 +39,7 @@ colYb: .res 2 ; Y1 and Y2 coords for entity B
 entitiesAreColliding: .res 1 ; Binary flag set by detect_collision subroutine
 
 hitCount: .res 1 ;; tmp variable for collision detection development
+deathCount: .res 1
 
 .segment "CODE"
 
@@ -179,6 +180,7 @@ forever:
   JSR bullet_pos_update
   JSR enemy_pos_update
   JSR scan_for_bullet_collisions
+  JSR scan_for_player_collisions
   LDA #$00
   STA gamestate
 no_update:
@@ -497,6 +499,71 @@ initialize_object_table:
   ADC #$04
   CPX #$30
   BNE @loop
+  RTS
+
+scan_for_player_collisions:
+  LDA PL_Y
+  CLC
+  SBC #$08
+  STA colYa
+  CLC
+  ADC #$10
+  STA colYa + 1
+  LDA PL_X
+  CLC
+  SBC #$08
+  STA colXa
+  CLC
+  ADC #$10
+  STA colXa + 1
+  LDX #$00
+@loop:
+  LDA objectAddressLookup, X
+  CMP #$02
+  BEQ @found
+@iterate:
+  TXA
+  CLC
+  ADC #$03
+  TAX
+  CPX #$30
+  BNE @loop
+  RTS
+@found:
+  STX collisionEntityIndexes + 1
+  INX
+  LDY #$00
+  LDA objectAddressLookup, X
+  STA collisionEntityBPointer
+  INX
+  LDA objectAddressLookup, X
+  STA collisionEntityBPointer
+  LDA (collisionEntityBPointer), Y
+  CLC
+  ADC #$01
+  STA colYb
+  CLC
+  ADC #$06
+  STA colYb + 1
+  LDY #$03
+  LDA (collisionEntityBPointer), Y
+  CLC
+  ADC #$01
+  STA colXb
+  CLC
+  ADC #$06
+  STA colXb + 1
+
+  LDX collisionEntityIndexes + 1
+  JSR detect_collision
+  LDA entitiesAreColliding
+  BEQ @iterate
+  ;; TODO write something to handle player collisions
+  LDA #$FF
+  STA $0100
+  INC deathCount
+  LDX collisionEntityIndexes + 1
+  JSR despawn_entity
   RTS
 
 scan_for_bullet_collisions:
