@@ -28,6 +28,17 @@ objectAddressLookup: .res 48
 freeObjectAddress: .res 2
 despawnIndex: .res 1
 
+collisionEntityIndexes: .res 2 ; offsets i and j for scaning object table
+collisionEntityAPointer: .res 2 ; OAM pointer for entity "A"
+collisionEntityBPointer: .res 2 ; OAM pointer for entity "B"
+colXa: .res 2 ; X1 and X2 coords for entity A
+colXb: .res 2 ; X1 and X2 coords for entity B
+colYa: .res 2 ; Y1 and Y2 coords for entity A
+colYb: .res 2 ; Y1 and Y2 coords for entity B
+;; TODO: combine collision flag into gamestate byte?
+entitiesAreColliding: .res 1 ; Binary flag set by detect_collision subroutine
+
+hitCount: .res 1 ;; tmp variable for collision detection development
 
 .segment "CODE"
 
@@ -167,6 +178,7 @@ forever:
   JSR handle_player_input
   JSR bullet_pos_update
   JSR enemy_pos_update
+  JSR scan_for_bullet_collisions
   LDA #$00
   STA gamestate
 no_update:
@@ -485,9 +497,122 @@ initialize_object_table:
   ADC #$04
   CPX #$30
   BNE @loop
-
   RTS
 
+scan_for_bullet_collisions:
+  ;; scan setup
+  LDA #$00
+  LDX #$00
+  STA collisionEntityIndexes
+  STA collisionEntityIndexes + 1
+@outerLoop: ; scan table for bullets
+  LDA objectAddressLookup, X
+  CMP #$01
+  BEQ @foundA
+@outerIterate:
+  TXA
+  CLC
+  ADC #$03
+  TAX
+  CPX #$30
+  BNE @outerLoop
+  RTS
+@foundA:
+  STX collisionEntityIndexes
+  LDY #$00
+@innerLoop:
+  LDA objectAddressLookup, Y
+  CMP #$02
+  BEQ @foundB
+@innerIterate:
+  TYA
+  CLC
+  ADC #$03
+  TAY
+  CPY #$30
+  BNE @innerLoop
+  JMP @outerIterate
+@foundB:
+  STY collisionEntityIndexes + 1
+  LDA collisionEntityIndexes
+  TAX
+  INX
+  LDA objectAddressLookup, X
+  STA collisionEntityAPointer
+  INX
+  LDA objectAddressLookup, X
+  STA collisionEntityAPointer + 1
+  LDA collisionEntityIndexes + 1
+  TAX
+  INX
+  LDA objectAddressLookup, X
+  STA collisionEntityBPointer
+  INX
+  LDA objectAddressLookup, X
+  STA collisionEntityBPointer + 1
+  JSR detect_collision
+  LDA entitiesAreColliding
+  BEQ @noCollision
+  JSR handle_collision
+@noCollision:
+  LDX collisionEntityIndexes
+  JMP @outerIterate
+
+handle_collision:
+  LDX collisionEntityIndexes
+  JSR despawn_entity
+  LDX collisionEntityIndexes + 1
+  JSR despawn_entity
+  INC hitCount
+  RTS
+
+detect_collision:
+  ;; Load entity coords into memory
+  STA $0100
+  LDY #$00
+  LDA (collisionEntityAPointer), Y
+  STA colXa
+  CLC
+  ADC  #$08
+  STA colXa + 1
+  LDA (collisionEntityBPointer), Y
+  STA colXb
+  CLC
+  ADC #$08
+  STA colXb + 1
+  LDY #$03
+  LDA (collisionEntityAPointer), Y
+  STA colYa
+  CLC
+  ADC #$08
+  STA colYa + 1
+  LDA (collisionEntityBPointer), Y
+  STA colYb
+  CLC
+  ADC #$08
+  STA colYb + 1
+
+  ;; Rect. overlap checking
+  LDA colYb
+  CMP colYa + 1
+  BCS @no_overlap ; yA2 <= yB1
+  LDA colYa
+  CMP colYb + 1
+  BCS @no_overlap ; yB2 <= yA1
+  LDA colXb
+  CMP colXa + 1
+  BCS @no_overlap ; xA2 <= xB1
+  LDA colXa
+  CMP colXb + 1
+  BCS @no_overlap ; xB2 <= xA1
+  ;; Object are overlapping
+  LDA #$01
+  STA entitiesAreColliding
+  RTS
+@no_overlap:
+  LDA #$00
+  STA entitiesAreColliding
+  RTS
 
 .endproc
 
