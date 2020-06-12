@@ -542,6 +542,7 @@ scan_for_bullet_collisions:
   STY collisionEntityIndexes + 1
   LDA collisionEntityIndexes
   TAX
+  INX
   LDA objectAddressLookup, X
   STA collisionEntityAPointer
   INX
@@ -549,6 +550,7 @@ scan_for_bullet_collisions:
   STA collisionEntityAPointer + 1
   LDA collisionEntityIndexes + 1
   TAX
+  INX
   LDA objectAddressLookup, X
   STA collisionEntityBPointer
   INX
@@ -572,6 +574,7 @@ handle_collision:
 
 detect_collision:
   ;; Load entity coords into memory
+  STA $0100
   LDY #$00
   LDA (collisionEntityAPointer), Y
   STA colXa
