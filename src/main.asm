@@ -557,26 +557,26 @@ scan_for_bullet_collisions:
   ;; Load entity coords into memory
   LDY #$00
   LDA (collisionEntityAPointer), Y
-  SBC #$01
+  ADC #$01
   STA colXa
   CLC
   ADC  #$06
   STA colXa + 1
   LDA (collisionEntityBPointer), Y
-  SBC #$01
+  ADC #$01
   STA colXb
   CLC
   ADC #$06
   STA colXb + 1
   LDY #$03
   LDA (collisionEntityAPointer), Y
-  SBC #$01
+  ADC #$01
   STA colYa
   CLC
   ADC #$06
   STA colYa + 1
   LDA (collisionEntityBPointer), Y
-  SBC #$01
+  ADC #$01
   STA colYb
   CLC
   ADC #$06
