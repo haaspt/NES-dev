@@ -540,8 +540,6 @@ scan_for_bullet_collisions:
   INX
   LDA objectAddressLookup, X
   STA collisionEntityAPointer
-  LDA (collisionEntityAPointer), Y ;; xA1
-
   INX
   LDA objectAddressLookup, X
   STA collisionEntityAPointer + 1
@@ -558,22 +556,9 @@ scan_for_bullet_collisions:
   LDY #$00
   LDA (collisionEntityAPointer), Y
   ADC #$01
-  STA colXa
-  CLC
-  ADC  #$06
-  STA colXa + 1
-  LDA (collisionEntityBPointer), Y
-  ADC #$01
-  STA colXb
-  CLC
-  ADC #$06
-  STA colXb + 1
-  LDY #$03
-  LDA (collisionEntityAPointer), Y
-  ADC #$01
   STA colYa
   CLC
-  ADC #$06
+  ADC  #$06
   STA colYa + 1
   LDA (collisionEntityBPointer), Y
   ADC #$01
@@ -581,6 +566,19 @@ scan_for_bullet_collisions:
   CLC
   ADC #$06
   STA colYb + 1
+  LDY #$03
+  LDA (collisionEntityAPointer), Y
+  ADC #$01
+  STA colXa
+  CLC
+  ADC #$06
+  STA colXa + 1
+  LDA (collisionEntityBPointer), Y
+  ADC #$01
+  STA colXb
+  CLC
+  ADC #$06
+  STA colXb + 1
 
   JSR detect_collision
   LDA entitiesAreColliding
