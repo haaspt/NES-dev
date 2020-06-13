@@ -24,7 +24,7 @@ scroll_y_pos: .res 1
 ; Byte 1: Sprite mem lobyte
 ; Byte 2: Sprite mem hibyte
 ; Byte 3: Object timer
-.enum object
+.enum objectType
       null
       bullet
       enemy
@@ -211,7 +211,7 @@ enemy_pos_update:
   LDX #$00
 @loop:
   LDA objectTable, X
-  CMP #object::enemy
+  CMP #objectType::enemy
   BEQ @found
 @iterate:
   TXA 
@@ -401,7 +401,7 @@ despawn_entity:
   STX despawnIndex ; store original index to tmp
   LDY #$00
   ; change entity status
-  LDA #object::null
+  LDA #objectType::null
   STA objectTable, X
   INX
   LDA objectTable, X
@@ -423,7 +423,7 @@ despawn_entity:
   RTS
 
 spawn_enemy:
-  LDY #object::enemy ; seeking to spawn an enemy
+  LDY #objectType::enemy ; seeking to spawn an enemy
   JSR find_free_object_slot
   LDA freeObjectAddress
   BNE @continue
@@ -444,7 +444,7 @@ spawn_enemy:
   RTS
 
 spawn_bullet:
-  LDY #object::bullet ; seeking to spawn a bullet
+  LDY #objectType::bullet ; seeking to spawn a bullet
   JSR find_free_object_slot
   LDA freeObjectAddress
   BNE @continue
@@ -495,7 +495,7 @@ initialize_object_table:
   LDX #$00
   LDA #<OAMTAB + $10 ; lowbyte
 @loop:
-  LDY #object::null ; all entities start inactive
+  LDY #objectType::null ; all entities start inactive
   STY objectTable, X
   INX
   STA objectTable, X
@@ -531,7 +531,7 @@ scan_for_player_collisions:
 @loop:
   ;; Search for active enemies
   LDA objectTable, X
-  CMP #object::enemy
+  CMP #objectType::enemy
   BEQ @found
 @iterate:
   TXA
@@ -584,7 +584,7 @@ scan_for_bullet_collisions:
   STA collisionEntityIndexes + 1
 @outerLoop: ; scan table for bullets
   LDA objectTable, X
-  CMP #object::bullet
+  CMP #objectType::bullet
   BEQ @foundA
 @outerIterate:
   TXA
@@ -599,7 +599,7 @@ scan_for_bullet_collisions:
   LDY #$00
 @innerLoop:
   LDA objectTable, Y
-  CMP #object::enemy
+  CMP #objectType::enemy
   BEQ @foundB
 @innerIterate:
   TYA
