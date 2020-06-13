@@ -24,6 +24,8 @@ ENEMY_Y_LIMIT       = $DE
 
 GUN_COOLDOWN        = $10
 ENEMY_SPAWN_RATE    = $7F
+ENEMY_OBJ_TIMER     = $10
+EXPL_OBJ_TIMER      = $04
 
 OBJECT_SIZE         = $04
 OBJECT_TABLE_LEN    = $40
