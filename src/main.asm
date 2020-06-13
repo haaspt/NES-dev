@@ -12,8 +12,10 @@ buttons: .res 1
 ; playerstate: .res 1
 
 scroll_y_pos: .res 1
-gun_cooldown_timer: .res 1
-enemy_spawn_timer: .res 1
+.scope timer
+  gun_cooldown: .res 1
+  enemy_spawn: .res 1
+.endscope
 
 ; dynamic object stuff
 ; Entity table
@@ -29,7 +31,7 @@ enemy_spawn_timer: .res 1
       explosion
 .endenum
 
-objectAddressLookup: .res 48
+objectTable: .res 48
 freeObjectAddress: .res 2
 despawnIndex: .res 1
 
@@ -77,17 +79,17 @@ deathCount: .res 1
 
   ;; COOLDOWN TIMER TICKS
 timer_updates:
-  LDY gun_cooldown_timer
+  LDY timer::gun_cooldown
   CPY #$00
   BEQ @next
   DEY
-  STY gun_cooldown_timer
+  STY timer::gun_cooldown
 @next:
-  LDY enemy_spawn_timer
+  LDY timer::enemy_spawn
   CPY #$00
   BEQ @finish
   DEY
-  STY enemy_spawn_timer
+  STY timer::enemy_spawn
 
 @finish:
   RTI
@@ -113,7 +115,7 @@ timer_updates:
   STA scroll_y_pos
 
   LDA #ENEMY_SPAWN_RATE
-  STA enemy_spawn_timer
+  STA timer::enemy_spawn
 
   LDY #$00
 load_player_sprites:
@@ -176,11 +178,11 @@ forever:
   LDA gamestate
   AND #%00000001
   BEQ no_update
-  LDA enemy_spawn_timer
+  LDA timer::enemy_spawn
   BNE @no_enemy_spawn
   JSR spawn_enemy
   LDA #ENEMY_SPAWN_RATE
-  STA enemy_spawn_timer
+  STA timer::enemy_spawn
 @no_enemy_spawn:
   JSR handle_player_input
   JSR bullet_pos_update
@@ -208,7 +210,7 @@ read_controller:
 enemy_pos_update:
   LDX #$00
 @loop:
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   CMP #object::enemy
   BEQ @found
 @iterate:
@@ -221,7 +223,7 @@ enemy_pos_update:
   RTS
 @found:
   INX
-  LDA (objectAddressLookup, X)
+  LDA (objectTable, X)
   ; check if enemy needs to be despawned
   CLC
   CMP #ENEMY_Y_LIMIT
@@ -233,7 +235,7 @@ enemy_pos_update:
 @continue:
   CLC
   ADC #$02
-  STA (objectAddressLookup, X)
+  STA (objectTable, X)
   DEX
   SEC
   BCS @iterate
@@ -241,7 +243,7 @@ enemy_pos_update:
 bullet_pos_update:
   LDX #$00
 @loop:
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   CMP #$01 ; check if bullet
   BEQ @found
 @iterate:
@@ -254,7 +256,7 @@ bullet_pos_update:
   RTS
 @found:
   INX
-  LDA (objectAddressLookup, X)
+  LDA (objectTable, X)
   ; check if bullet needs to be despawned
   CLC
   CMP #BULLET_Y_LIMIT
@@ -266,7 +268,7 @@ bullet_pos_update:
 @continue:
   CLC
   SBC #$02
-  STA (objectAddressLookup, X)
+  STA (objectTable, X)
   DEX
   SEC
   BCS @iterate
@@ -385,12 +387,12 @@ move_left:
   RTS
 
 handle_shoot:
-  LDA gun_cooldown_timer
+  LDA timer::gun_cooldown
   BEQ @continue
   RTS
 @continue:
   LDA #GUN_COOLDOWN
-  STA gun_cooldown_timer
+  STA timer::gun_cooldown
   JSR spawn_bullet
   RTS
 
@@ -400,12 +402,12 @@ despawn_entity:
   LDY #$00
   ; change entity status
   LDA #object::null
-  STA objectAddressLookup, X
+  STA objectTable, X
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA freeObjectAddress
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA freeObjectAddress + 1
   LDY #$00
   LDA #$00
@@ -467,7 +469,7 @@ spawn_bullet:
 find_free_object_slot:
   LDX #$00
 @loop:
-  LDA objectAddressLookup, X ; check if free entity
+  LDA objectTable, X ; check if free entity
   BEQ @found
   TXA
   CLC
@@ -479,12 +481,12 @@ find_free_object_slot:
   STA freeObjectAddress
   RTS
 @found:
-  STY objectAddressLookup, X ; desired object type stored in Y register
+  STY objectTable, X ; desired object type stored in Y register
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA freeObjectAddress
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA freeObjectAddress + 1
   RTS
 
@@ -494,12 +496,12 @@ initialize_object_table:
   LDA #<OAMTAB + $10 ; lowbyte
 @loop:
   LDY #object::null ; all entities start inactive
-  STY objectAddressLookup, X
+  STY objectTable, X
   INX
-  STA objectAddressLookup, X
+  STA objectTable, X
   INX
   LDY #>OAMTAB ; sprite table hibyte
-  STY objectAddressLookup, X
+  STY objectTable, X
   INX
   INX ; No need to store 0 to timer byte
   CLC
@@ -528,7 +530,7 @@ scan_for_player_collisions:
   LDX #$00
 @loop:
   ;; Search for active enemies
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   CMP #object::enemy
   BEQ @found
 @iterate:
@@ -543,10 +545,10 @@ scan_for_player_collisions:
   STX collisionEntityIndexes + 1
   INX
   LDY #$00
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityBPointer
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityBPointer + 1
   LDA (collisionEntityBPointer), Y
   CLC
@@ -581,7 +583,7 @@ scan_for_bullet_collisions:
   STA collisionEntityIndexes
   STA collisionEntityIndexes + 1
 @outerLoop: ; scan table for bullets
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   CMP #object::bullet
   BEQ @foundA
 @outerIterate:
@@ -596,7 +598,7 @@ scan_for_bullet_collisions:
   STX collisionEntityIndexes
   LDY #$00
 @innerLoop:
-  LDA objectAddressLookup, Y
+  LDA objectTable, Y
   CMP #object::enemy
   BEQ @foundB
 @innerIterate:
@@ -613,18 +615,18 @@ scan_for_bullet_collisions:
   LDA collisionEntityIndexes
   TAX
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityAPointer
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityAPointer + 1
   LDA collisionEntityIndexes + 1
   TAX
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityBPointer
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityBPointer + 1
 
   ;; Load entity coords into memory
