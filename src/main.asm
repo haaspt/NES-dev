@@ -21,6 +21,7 @@ enemy_spawn_timer: .res 1
 ; Byte 0: Entity type
 ; Byte 1: Sprite mem lobyte
 ; Byte 2: Sprite mem hibyte
+; Byte 3: Object timer
 .enum object
       null
       bullet
@@ -441,7 +442,7 @@ spawn_enemy:
   RTS
 
 spawn_bullet:
-  LDY #$01 ; seeking to spawn a bullet
+  LDY #object::bullet ; seeking to spawn a bullet
   JSR find_free_object_slot
   LDA freeObjectAddress
   BNE @continue
@@ -493,13 +494,14 @@ initialize_object_table:
   LDA #<OAMTAB + $10 ; lowbyte
 @loop:
   LDY #object::null ; all entities start inactive
-  STY objectAddressLookup, x
+  STY objectAddressLookup, X
   INX
   STA objectAddressLookup, X
   INX
   LDY #>OAMTAB ; sprite table hibyte
   STY objectAddressLookup, X
   INX
+  INX ; No need to store 0 to timer byte
   CLC
   ADC #$04 ; OAM sprite length
   CPX #OBJECT_TABLE_LEN
@@ -585,9 +587,9 @@ scan_for_bullet_collisions:
 @outerIterate:
   TXA
   CLC
-  ADC #$03
+  ADC #OBJECT_SIZE
   TAX
-  CPX #$30
+  CPX #OBJECT_TABLE_LEN
   BNE @outerLoop
   RTS
 @foundA:
