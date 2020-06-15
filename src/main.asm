@@ -55,41 +55,15 @@ deathCount: .res 1
 .endproc
 
 .proc nmi_hander
-  ; PPU Scroll
-  LDA #$00
-  STA PPUSCROLL
-  LDA scroll_y_pos
-  STA PPUSCROLL
-  BNE @continue
-  LDA #Y_SCROLL_LIMIT
-  STA scroll_y_pos
-@continue:
-  DEC scroll_y_pos
-
-  ; Perform DMA
+  ;; Perform DMA
   LDA #$00
   STA OAMADDR
   LDA #$02
   STA OAMDMA
-
-  ; Reset gamestate update flag
-  LDA #$01
-  EOR gamestate
+  ;; Reset gamestate update flag
+  LDA #%10000000
+  ORA gamestate
   STA gamestate
-
-  ;; COOLDOWN TIMER TICKS
-timer_updates:
-  LDY timer::gun_cooldown
-  CPY #$00
-  BEQ @next
-  DEY
-  STY timer::gun_cooldown
-@next:
-  LDY timer::enemy_spawn
-  CPY #$00
-  BEQ @finish
-  DEY
-  STY timer::enemy_spawn
 
 @finish:
   RTI
@@ -101,15 +75,15 @@ timer_updates:
 .export main
 .proc main
   ; Gamestate status flags
-  ; ---- --IU
+  ; UB-- -P--
   ; |||| ||||
-  ; |||| |||+- Gamestate update pending
-  ; |||| ||+-- Input registered
-  ; |||| |+--- Undef
+  ; |||| |||+- Undef
+  ; |||| ||+-- Undef
+  ; |||| |+--- Game paused
   ; |||| +---- Undef
   ; ||++------ Undef
-  ; |+-------- Undef
-  ; +--------- Undef
+  ; |+-------- Player is pressing button
+  ; +--------- Gamestate update pending
   LDA #%00000000
   STA gamestate
   STA scroll_y_pos
@@ -174,25 +148,58 @@ vblankwait:
   STA PPUCTRL
   LDA #%00011110 ; turn on screen
   STA PPUMASK
-forever:
-  LDA gamestate
-  AND #%00000001
-  BEQ no_update
+@loop:
+  ;; Check if frame needs updating
+  BIT gamestate
+  BPL @finish_update
+  ;; Toggle update flag
+  LDA #%10000000
+  EOR gamestate
+  STA gamestate
+  ;; Get player input (even if paused)
+  JSR handle_player_input
+  ;; Finish update if game paused
+  LDA #%00000100
+  BIT gamestate
+  BNE @finish_update
+  ;; Check if enemy spawn timer expired
   LDA timer::enemy_spawn
   BNE @no_enemy_spawn
+  ;; Spawn enemy and reset spawn timer
   JSR spawn_enemy
   LDA #ENEMY_SPAWN_RATE
   STA timer::enemy_spawn
 @no_enemy_spawn:
-  JSR handle_player_input
+  ;; Update object positions
+  ;; Scan and handle collisions
   JSR bullet_pos_update
   JSR enemy_pos_update
   JSR scan_for_bullet_collisions
   JSR scan_for_player_collisions
+  JSR scroll_background
+  ;; COOLDOWN TIMER TICKS
+  LDA timer::gun_cooldown
+  BEQ @next_timer
+  DEC timer::gun_cooldown
+@next_timer:
+  LDA timer::enemy_spawn
+  BEQ @finish_update
+  DEC timer::enemy_spawn
+@finish_update:
+  JMP @loop
+
+scroll_background:
+  ; PPU Scroll
   LDA #$00
-  STA gamestate
-no_update:
-  JMP forever
+  STA PPUSCROLL
+  LDA scroll_y_pos
+  STA PPUSCROLL
+  BNE @continue
+  LDA #Y_SCROLL_LIMIT
+  STA scroll_y_pos
+@continue:
+  DEC scroll_y_pos
+  RTS
 
 read_controller:
   LDA #%00000001
@@ -275,39 +282,53 @@ bullet_pos_update:
 
 handle_player_input:
   JSR read_controller
-  LDA buttons
-  ORA #%00000000 ; determine if any button pressed
-  BNE @continue
-  RTS
-@continue:
-  LDY #$00
-  LDX #$00
-
-  LDA buttons
-  AND #%11000000 ; bitmask all but A or B
-  BEQ shootNotPressed
+  ;; Handle start
+  LDA #%00010000
+  AND buttons
+  BEQ @startNotPressed
+  ;; Test if button flag active
+  BIT gamestate
+  BVS @buttonsAreHeld
+  JSR handle_pause
+@startNotPressed:
+  BIT gamestate
+  BVS @buttonsAreHeld
+  LDA #%10111111
+  AND gamestate
+  STA gamestate
+  BIT gamestate
+  BMI @gameIsPaused
+  LDA #%11000000
+  AND buttons
+  BEQ @buttonsNotPressed
   JSR handle_shoot
-shootNotPressed:  
+@buttonsAreHeld:
+@buttonsNotPressed:
+  LDA #%00001111
+  AND buttons
+  BEQ @directionsNotPressed
   LDA buttons
   AND #%00001000 ; bitmask all but Up
-  BEQ upNotPressed
+  BEQ @upNotPressed
   JSR move_up
-upNotPressed:
+@upNotPressed:
   LDA buttons
   AND #%00000100 ; bitmask all but Down
-  BEQ downNotPressed
+  BEQ @downNotPressed
   JSR move_down
-downNotPressed:
+@downNotPressed:
   LDA buttons
   AND #%00000010 ; bitmask all but Left
-  BEQ leftNotPressed
+  BEQ @leftNotPressed
   JSR move_left
-leftNotPressed:
+@leftNotPressed:
   LDA buttons
   AND #%00000001 ; bitmask all but Right
-  BEQ rightNotPressed
+  BEQ @rightNotPressed
   JSR move_right
-rightNotPressed:
+@rightNotPressed:
+@directionsNotPressed:
+@gameIsPaused:
   RTS
 
 move_down:
@@ -387,13 +408,30 @@ move_left:
   RTS
 
 handle_shoot:
+  BIT gamestate
+  BVS @return ;; Skip shoot of button is still held
   LDA timer::gun_cooldown
   BEQ @continue
   RTS
 @continue:
+  LDA #%01000000
+  ORA gamestate
+  STA gamestate
   LDA #GUN_COOLDOWN
   STA timer::gun_cooldown
   JSR spawn_bullet
+@return:
+  RTS
+
+handle_pause:
+  BIT gamestate
+  BVS @return
+  LDA #$FF
+  STA $0100
+  LDA #%01000010 ; Game paused, button pressed
+  ORA gamestate
+  STA gamestate
+@return:
   RTS
 
 despawn_entity:
