@@ -2,6 +2,8 @@
 .include "header.inc"
 
 .zeropage
+pointer: .res 2
+temp: .res 1
 ; Gamestate status flags
 ; UB-- -P--
 ; |||| ||||
@@ -173,6 +175,7 @@ vblankwait:
   ;; Scan and handle collisions
   JSR bullet_pos_update
   JSR enemy_pos_update
+  JSR expl_pos_update
   JSR scan_for_bullet_collisions
   JSR scan_for_player_collisions
   JSR scroll_background
@@ -229,6 +232,41 @@ read_controller:
   BCC @loop
   RTS
 
+expl_pos_update:
+  LDX #$00
+  LDY #$01
+@loop:
+  LDA objectTable, X
+  CMP #objectType::explosion
+  BEQ @found
+@iterate:
+  TXA
+  CLC
+  ADC #OBJECT_SIZE
+  TAX
+  CPX #OBJECT_TABLE_LEN
+  BCC @loop
+  RTS
+@found:
+  DEC objectTable + 3, X
+  BNE @continue
+  JSR despawn_entity
+  SEC
+  BCS @iterate
+@continue:
+  LDA objectTable + 1, X
+  STA pointer
+  LDA objectTable + 2, X
+  STA pointer + 1
+  LDA (pointer), Y
+  STA temp
+  INC temp
+  LDA temp
+  STA (pointer), Y
+  SEC
+  BCS @iterate
+
+
 enemy_pos_update:
   LDX #$00
 @loop:
@@ -258,6 +296,12 @@ enemy_pos_update:
   CLC
   ADC #$02
   STA (objectTable, X)
+  ;; Check and update enemy timer
+  DEC objectTable + 2, X
+  BNE @no_timer_update
+  LDA #ENEMY_OBJ_TIMER
+  STA objectTable + 2, X
+@no_timer_update:
   DEX
   SEC
   BCS @iterate
@@ -470,6 +514,22 @@ despawn_entity:
   LDX despawnIndex ; reload original index from tmp
   RTS
 
+spawn_explosion:
+  ;; object index stored in X
+  LDA #objectType::explosion
+  STA objectTable, X
+  LDA objectTable + 1, X
+  STA pointer
+  LDA objectTable + 2, X
+  STA pointer + 1
+  LDY #$01
+  LDA #$10
+  STA (pointer), Y
+  INY
+  LDA #$06
+  STA (pointer), Y
+  RTS
+
 spawn_enemy:
   LDY #objectType::enemy ; seeking to spawn an enemy
   JSR find_free_object_slot
@@ -536,6 +596,23 @@ find_free_object_slot:
   INX
   LDA objectTable, X
   STA freeObjectAddress + 1
+  INX
+  JSR initialize_object_timer
+  RTS
+
+initialize_object_timer:
+  CPY #objectType::enemy
+  BEQ @enemy
+  CPY #objectType::explosion
+  BEQ @explosion
+  RTS
+@enemy:
+  LDA #ENEMY_OBJ_TIMER
+  STA objectTable, X
+  RTS
+@explosion:
+  LDA #EXPL_OBJ_TIMER
+  STA objectTable, X
   RTS
 
 initialize_object_table:
@@ -717,7 +794,7 @@ handle_collision:
   LDX collisionEntityIndexes
   JSR despawn_entity
   LDX collisionEntityIndexes + 1
-  JSR despawn_entity
+  JSR spawn_explosion
   INC hitCount
   RTS
 
