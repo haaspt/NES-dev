@@ -1,6 +1,6 @@
 # NES-dev
 
-![Game screenshot](/assets/gameplay_2.gif)
+![Game screenshot](/assets/gameplay_4.gif)
 
 ## Overview
 

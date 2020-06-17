@@ -2,29 +2,46 @@
 .include "header.inc"
 
 .zeropage
+pointer: .res 2
+temp: .res 1
+; Gamestate status flags
+; UB-- -P--
+; |||| ||||
+; |||| |||+- Undef
+; |||| ||+-- Undef
+; |||| |+--- Game paused
+; |||| +---- Undef
+; ||++------ Undef
+; |+-------- Player is pressing button
+; +--------- Gamestate update pending
 gamestate: .res 1
+
+; Button flags
+; A B S Sl U D L R
 buttons: .res 1
-; playerstates:
-; 1 = Facing Up
-; 2 = Facing Down
-; 3 = Facing Right
-; 4 = Facing Left
-; playerstate: .res 1
+
 
 scroll_y_pos: .res 1
-gun_cooldown_timer: .res 1
-enemy_spawn_timer: .res 1
+.scope timer
+  gun_cooldown: .res 1
+  enemy_spawn: .res 1
+.endscope
 
 ; dynamic object stuff
 ; Entity table
 ; 16 x 3 bytes
 ; Byte 0: Entity type
-; -- 00: inactive
-; -- 01: bullet
-; -- 02: enemy
 ; Byte 1: Sprite mem lobyte
 ; Byte 2: Sprite mem hibyte
-objectAddressLookup: .res 48
+; Byte 3: Object timer
+.enum objectType
+      null
+      bullet
+      enemy
+      explosion
+.endenum
+
+objectTable: .res 48
 freeObjectAddress: .res 2
 despawnIndex: .res 1
 
@@ -48,66 +65,31 @@ deathCount: .res 1
 .endproc
 
 .proc nmi_hander
-  ; PPU Scroll
-  LDA #$00
-  STA PPUSCROLL
-  LDA scroll_y_pos
-  STA PPUSCROLL
-  BNE @continue
-  LDA #$F0
-  STA scroll_y_pos
-@continue:
-  DEC scroll_y_pos
-
-  ; Perform DMA
+  ;; Perform DMA
   LDA #$00
   STA OAMADDR
   LDA #$02
   STA OAMDMA
-
-  ; Reset gamestate update flag
-  LDA #$01
-  EOR gamestate
+  ;; Reset gamestate update flag
+  LDA #%10000000
+  ORA gamestate
   STA gamestate
-
-  ;; COOLDOWN TIMER TICKS
-timer_updates:
-  LDY gun_cooldown_timer
-  CPY #$00
-  BEQ @next
-  DEY
-  STY gun_cooldown_timer
-@next:
-  LDY enemy_spawn_timer
-  CPY #$00
-  BEQ @finish
-  DEY
-  STY enemy_spawn_timer
 
 @finish:
   RTI
 .endproc
 
+
 .import reset_handler
 
 .export main
 .proc main
-  ; Gamestate status flags
-  ; ---- --IU
-  ; |||| ||||
-  ; |||| |||+- Gamestate update pending
-  ; |||| ||+-- Input registered
-  ; |||| |+--- Undef
-  ; |||| +---- Undef
-  ; ||++------ Undef
-  ; |+-------- Undef
-  ; +--------- Undef
   LDA #%00000000
   STA gamestate
   STA scroll_y_pos
 
-  LDA #$7F
-  STA enemy_spawn_timer
+  LDA #ENEMY_SPAWN_RATE
+  STA timer::enemy_spawn
 
   LDY #$00
 load_player_sprites:
@@ -166,28 +148,79 @@ vblankwait:
   STA PPUCTRL
   LDA #%00011110 ; turn on screen
   STA PPUMASK
-forever:
-  LDA gamestate
-  AND #%00000001
-  BEQ no_update
-  LDA enemy_spawn_timer
-  BNE @no_enemy_spawn
-  JSR spawn_enemy
-  LDA #$7F
-  STA enemy_spawn_timer
-@no_enemy_spawn:
+@loop:
+  ;; Check if frame needs updating
+  BIT gamestate
+  BPL @finish_update
+  ;; Toggle update flag
+  LDA #%10000000
+  EOR gamestate
+  STA gamestate
+  ;; Get player input (even if paused)
   JSR handle_player_input
+  JSR update_button_flag
+  ;; Finish update if game paused
+  LDA #%00000100
+  BIT gamestate
+  BNE @finish_update
+  ;; Check if enemy spawn timer expired
+  LDA timer::enemy_spawn
+  BNE @no_enemy_spawn
+  ;; Spawn enemy and reset spawn timer
+  JSR spawn_enemy
+  LDA #ENEMY_SPAWN_RATE
+  STA timer::enemy_spawn
+@no_enemy_spawn:
+  ;; Update object positions
+  ;; Scan and handle collisions
   JSR bullet_pos_update
   JSR enemy_pos_update
+  JSR expl_pos_update
   JSR scan_for_bullet_collisions
   JSR scan_for_player_collisions
-  LDA #$00
+  JSR scroll_background
+  ;; COOLDOWN TIMER TICKS
+  LDA timer::gun_cooldown
+  BEQ @next_timer
+  DEC timer::gun_cooldown
+@next_timer:
+  LDA timer::enemy_spawn
+  BEQ @finish_update
+  DEC timer::enemy_spawn
+@finish_update:
+  JMP @loop
+
+update_button_flag:
+  JSR read_controller
+  LDA #%11110000
+  BIT buttons
+  BEQ @clear_flag
+  ;; Set flag
+  LDA #%01000000
+  ORA gamestate
   STA gamestate
-no_update:
-  JMP forever
+  RTS
+@clear_flag:
+  LDA #%10111111
+  AND gamestate
+  STA gamestate
+  RTS
+
+scroll_background:
+  ; PPU Scroll
+  LDA #$00
+  STA PPUSCROLL
+  LDA scroll_y_pos
+  STA PPUSCROLL
+  BNE @continue
+  LDA #Y_SCROLL_LIMIT
+  STA scroll_y_pos
+@continue:
+  DEC scroll_y_pos
+  RTS
 
 read_controller:
-  LDA #$01
+  LDA #%00000001
   STA JOYPAD1 ; begin contoller polling
   STA buttons ; set to 1 for ring counter
   LSR A ; shift #$01->#$00
@@ -199,26 +232,61 @@ read_controller:
   BCC @loop
   RTS
 
+expl_pos_update:
+  LDX #$00
+  LDY #$01
+@loop:
+  LDA objectTable, X
+  CMP #objectType::explosion
+  BEQ @found
+@iterate:
+  TXA
+  CLC
+  ADC #OBJECT_SIZE
+  TAX
+  CPX #OBJECT_TABLE_LEN
+  BCC @loop
+  RTS
+@found:
+  DEC objectTable + 3, X
+  BNE @continue
+  JSR despawn_entity
+  SEC
+  BCS @iterate
+@continue:
+  LDA objectTable + 1, X
+  STA pointer
+  LDA objectTable + 2, X
+  STA pointer + 1
+  LDA (pointer), Y
+  STA temp
+  INC temp
+  LDA temp
+  STA (pointer), Y
+  SEC
+  BCS @iterate
+
+
 enemy_pos_update:
   LDX #$00
 @loop:
-  LDA objectAddressLookup, X
-  CMP #$02 ; check if enemy
+  LDA objectTable, X
+  CMP #objectType::enemy
   BEQ @found
 @iterate:
   TXA 
   CLC
-  ADC #$03 ; size of table object
+  ADC #OBJECT_SIZE ; size of table object
   TAX
-  CPX #$30 ; size of object table
+  CPX #OBJECT_TABLE_LEN ; size of object table
   BCC @loop
   RTS
 @found:
   INX
-  LDA (objectAddressLookup, X)
+  LDA (objectTable, X)
   ; check if enemy needs to be despawned
   CLC
-  CMP #$DE
+  CMP #ENEMY_Y_LIMIT
   BCC @continue
   DEX 
   JSR despawn_entity
@@ -227,7 +295,13 @@ enemy_pos_update:
 @continue:
   CLC
   ADC #$02
-  STA (objectAddressLookup, X)
+  STA (objectTable, X)
+  ;; Check and update enemy timer
+  DEC objectTable + 2, X
+  BNE @no_timer_update
+  LDA #ENEMY_OBJ_TIMER
+  STA objectTable + 2, X
+@no_timer_update:
   DEX
   SEC
   BCS @iterate
@@ -235,23 +309,23 @@ enemy_pos_update:
 bullet_pos_update:
   LDX #$00
 @loop:
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   CMP #$01 ; check if bullet
   BEQ @found
 @iterate:
   TXA
   CLC
-  ADC #$03 ; size of table object
+  ADC #OBJECT_SIZE ; size of table object
   TAX
-  CPX #$30 ; size of object table
+  CPX #OBJECT_TABLE_LEN ; size of object table
   BCC @loop
   RTS
 @found:
   INX
-  LDA (objectAddressLookup, X)
+  LDA (objectTable, X)
   ; check if bullet needs to be despawned
   CLC
-  CMP #$03
+  CMP #BULLET_Y_LIMIT
   BCS @continue
   DEX
   JSR despawn_entity
@@ -260,46 +334,58 @@ bullet_pos_update:
 @continue:
   CLC
   SBC #$02
-  STA (objectAddressLookup, X)
+  STA (objectTable, X)
   DEX
   SEC
   BCS @iterate
 
 handle_player_input:
   JSR read_controller
-  LDA buttons
-  ORA #%00000000 ; determine if any button pressed
-  BNE @continue
-  RTS
-@continue:
-  LDY #$00
-  LDX #$00
-
-  LDA buttons
-  AND #%11000000 ; bitmask all but A or B
-  BEQ shootNotPressed
+  ;; Handle start
+  LDA #%00010000
+  AND buttons
+  BEQ @startNotPressed
+  ;; Test if button flag active
+  BIT gamestate
+  BVS @buttonFlagActive
+  JSR handle_pause
+@startNotPressed:
+  LDA #%00000100
+  AND gamestate
+  BNE @gameIsPaused
+  BIT gamestate
+  BVS @buttonFlagActive
+  LDA #%11000000
+  AND buttons
+  BEQ @buttonsNotPressed
   JSR handle_shoot
-shootNotPressed:  
+@buttonFlagActive:
+@buttonsNotPressed:
+  LDA #%00001111
+  AND buttons
+  BEQ @directionsNotPressed
   LDA buttons
   AND #%00001000 ; bitmask all but Up
-  BEQ upNotPressed
+  BEQ @upNotPressed
   JSR move_up
-upNotPressed:
+@upNotPressed:
   LDA buttons
   AND #%00000100 ; bitmask all but Down
-  BEQ downNotPressed
+  BEQ @downNotPressed
   JSR move_down
-downNotPressed:
+@downNotPressed:
   LDA buttons
   AND #%00000010 ; bitmask all but Left
-  BEQ leftNotPressed
+  BEQ @leftNotPressed
   JSR move_left
-leftNotPressed:
+@leftNotPressed:
   LDA buttons
   AND #%00000001 ; bitmask all but Right
-  BEQ rightNotPressed
+  BEQ @rightNotPressed
   JSR move_right
-rightNotPressed:
+@rightNotPressed:
+@directionsNotPressed:
+@gameIsPaused:
   RTS
 
 move_down:
@@ -379,13 +465,27 @@ move_left:
   RTS
 
 handle_shoot:
-  LDA gun_cooldown_timer
+  BIT gamestate
+  BVS @return ;; Skip shoot of button is still held
+  LDA timer::gun_cooldown
   BEQ @continue
   RTS
 @continue:
-  LDA #$10
-  STA gun_cooldown_timer
+  LDA #GUN_COOLDOWN
+  STA timer::gun_cooldown
   JSR spawn_bullet
+@return:
+  RTS
+
+handle_pause:
+  LDA #$FF
+  STA $0100
+  BIT gamestate
+  BVS @return ; Button flag active, return
+  LDA #%00000100 ; Toggle pause state
+  EOR gamestate
+  STA gamestate
+@return:
   RTS
 
 despawn_entity:
@@ -393,13 +493,13 @@ despawn_entity:
   STX despawnIndex ; store original index to tmp
   LDY #$00
   ; change entity status
-  LDA #$00
-  STA objectAddressLookup, X
+  LDA #objectType::null
+  STA objectTable, X
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA freeObjectAddress
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA freeObjectAddress + 1
   LDY #$00
   LDA #$00
@@ -414,8 +514,24 @@ despawn_entity:
   LDX despawnIndex ; reload original index from tmp
   RTS
 
+spawn_explosion:
+  ;; object index stored in X
+  LDA #objectType::explosion
+  STA objectTable, X
+  LDA objectTable + 1, X
+  STA pointer
+  LDA objectTable + 2, X
+  STA pointer + 1
+  LDY #$01
+  LDA #$10
+  STA (pointer), Y
+  INY
+  LDA #$06
+  STA (pointer), Y
+  RTS
+
 spawn_enemy:
-  LDY #$02 ; seeking to spawn an enemy
+  LDY #objectType::enemy ; seeking to spawn an enemy
   JSR find_free_object_slot
   LDA freeObjectAddress
   BNE @continue
@@ -436,7 +552,7 @@ spawn_enemy:
   RTS
 
 spawn_bullet:
-  LDY #$01 ; seeking to spawn a bullet
+  LDY #objectType::bullet ; seeking to spawn a bullet
   JSR find_free_object_slot
   LDA freeObjectAddress
   BNE @continue
@@ -461,43 +577,61 @@ spawn_bullet:
 find_free_object_slot:
   LDX #$00
 @loop:
-  LDA objectAddressLookup, X ; check if free entity
+  LDA objectTable, X ; check if free entity
   BEQ @found
   TXA
   CLC
-  ADC #$03
+  ADC #OBJECT_SIZE
   TAX
-  CPX #$30 ; size of object table
+  CPX #OBJECT_TABLE_LEN ; size of object table
   BCC @loop
   LDA #$00
   STA freeObjectAddress
   RTS
 @found:
-  STY objectAddressLookup, X ; desired object type stored in Y register
+  STY objectTable, X ; desired object type stored in Y register
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA freeObjectAddress
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA freeObjectAddress + 1
+  INX
+  JSR initialize_object_timer
+  RTS
+
+initialize_object_timer:
+  CPY #objectType::enemy
+  BEQ @enemy
+  CPY #objectType::explosion
+  BEQ @explosion
+  RTS
+@enemy:
+  LDA #ENEMY_OBJ_TIMER
+  STA objectTable, X
+  RTS
+@explosion:
+  LDA #EXPL_OBJ_TIMER
+  STA objectTable, X
   RTS
 
 initialize_object_table:
   ; initialize object address lookup
   LDX #$00
-  LDA #$10 ; lowbyte
+  LDA #<OAMTAB + $10 ; lowbyte
 @loop:
-  LDY #$00 ; all entities start inactive
-  STY objectAddressLookup, x
+  LDY #objectType::null ; all entities start inactive
+  STY objectTable, X
   INX
-  STA objectAddressLookup, X
+  STA objectTable, X
   INX
-  LDY #$02 ; sprite table hibyte
-  STY objectAddressLookup, X
+  LDY #>OAMTAB ; sprite table hibyte
+  STY objectTable, X
   INX
+  INX ; No need to store 0 to timer byte
   CLC
-  ADC #$04
-  CPX #$30
+  ADC #$04 ; OAM sprite length
+  CPX #OBJECT_TABLE_LEN
   BNE @loop
   RTS
 
@@ -521,25 +655,25 @@ scan_for_player_collisions:
   LDX #$00
 @loop:
   ;; Search for active enemies
-  LDA objectAddressLookup, X
-  CMP #$02
+  LDA objectTable, X
+  CMP #objectType::enemy
   BEQ @found
 @iterate:
   TXA
   CLC
-  ADC #$03
+  ADC #OBJECT_SIZE
   TAX
-  CPX #$30
+  CPX #OBJECT_TABLE_LEN
   BNE @loop
   RTS
 @found:
   STX collisionEntityIndexes + 1
   INX
   LDY #$00
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityBPointer
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityBPointer + 1
   LDA (collisionEntityBPointer), Y
   CLC
@@ -562,8 +696,6 @@ scan_for_player_collisions:
   LDA entitiesAreColliding
   BEQ @iterate
   ;; TODO write something to handle player collisions
-  LDA #$FF
-  STA $0100
   INC deathCount
   LDX collisionEntityIndexes + 1
   JSR despawn_entity
@@ -576,30 +708,30 @@ scan_for_bullet_collisions:
   STA collisionEntityIndexes
   STA collisionEntityIndexes + 1
 @outerLoop: ; scan table for bullets
-  LDA objectAddressLookup, X
-  CMP #$01
+  LDA objectTable, X
+  CMP #objectType::bullet
   BEQ @foundA
 @outerIterate:
   TXA
   CLC
-  ADC #$03
+  ADC #OBJECT_SIZE
   TAX
-  CPX #$30
+  CPX #OBJECT_TABLE_LEN
   BNE @outerLoop
   RTS
 @foundA:
   STX collisionEntityIndexes
   LDY #$00
 @innerLoop:
-  LDA objectAddressLookup, Y
-  CMP #$02
+  LDA objectTable, Y
+  CMP #objectType::enemy
   BEQ @foundB
 @innerIterate:
   TYA
   CLC
-  ADC #$03
+  ADC #OBJECT_SIZE
   TAY
-  CPY #$30
+  CPY #OBJECT_TABLE_LEN
   BNE @innerLoop
   JMP @outerIterate
 @foundB:
@@ -608,18 +740,18 @@ scan_for_bullet_collisions:
   LDA collisionEntityIndexes
   TAX
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityAPointer
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityAPointer + 1
   LDA collisionEntityIndexes + 1
   TAX
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityBPointer
   INX
-  LDA objectAddressLookup, X
+  LDA objectTable, X
   STA collisionEntityBPointer + 1
 
   ;; Load entity coords into memory
@@ -662,7 +794,7 @@ handle_collision:
   LDX collisionEntityIndexes
   JSR despawn_entity
   LDX collisionEntityIndexes + 1
-  JSR despawn_entity
+  JSR spawn_explosion
   INC hitCount
   RTS
 
