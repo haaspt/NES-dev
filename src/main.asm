@@ -2,14 +2,22 @@
 .include "header.inc"
 
 .zeropage
+; Gamestate status flags
+; UB-- -P--
+; |||| ||||
+; |||| |||+- Undef
+; |||| ||+-- Undef
+; |||| |+--- Game paused
+; |||| +---- Undef
+; ||++------ Undef
+; |+-------- Player is pressing button
+; +--------- Gamestate update pending
 gamestate: .res 1
+
+; Button flags
+; A B S Sl U D L R
 buttons: .res 1
-; playerstates:
-; 1 = Facing Up
-; 2 = Facing Down
-; 3 = Facing Right
-; 4 = Facing Left
-; playerstate: .res 1
+
 
 scroll_y_pos: .res 1
 .scope timer
@@ -74,16 +82,6 @@ deathCount: .res 1
 
 .export main
 .proc main
-  ; Gamestate status flags
-  ; UB-- -P--
-  ; |||| ||||
-  ; |||| |||+- Undef
-  ; |||| ||+-- Undef
-  ; |||| |+--- Game paused
-  ; |||| +---- Undef
-  ; ||++------ Undef
-  ; |+-------- Player is pressing button
-  ; +--------- Gamestate update pending
   LDA #%00000000
   STA gamestate
   STA scroll_y_pos
@@ -158,6 +156,7 @@ vblankwait:
   STA gamestate
   ;; Get player input (even if paused)
   JSR handle_player_input
+  JSR update_button_flag
   ;; Finish update if game paused
   LDA #%00000100
   BIT gamestate
@@ -187,6 +186,22 @@ vblankwait:
   DEC timer::enemy_spawn
 @finish_update:
   JMP @loop
+
+update_button_flag:
+  JSR read_controller
+  LDA #%11110000
+  BIT buttons
+  BEQ @clear_flag
+  ;; Set flag
+  LDA #%01000000
+  ORA gamestate
+  STA gamestate
+  RTS
+@clear_flag:
+  LDA #%10111111
+  AND gamestate
+  STA gamestate
+  RTS
 
 scroll_background:
   ; PPU Scroll
@@ -288,21 +303,19 @@ handle_player_input:
   BEQ @startNotPressed
   ;; Test if button flag active
   BIT gamestate
-  BVS @buttonsAreHeld
+  BVS @buttonFlagActive
   JSR handle_pause
 @startNotPressed:
-  BIT gamestate
-  BVS @buttonsAreHeld
-  LDA #%10111111
+  LDA #%00000100
   AND gamestate
-  STA gamestate
+  BNE @gameIsPaused
   BIT gamestate
-  BMI @gameIsPaused
+  BVS @buttonFlagActive
   LDA #%11000000
   AND buttons
   BEQ @buttonsNotPressed
   JSR handle_shoot
-@buttonsAreHeld:
+@buttonFlagActive:
 @buttonsNotPressed:
   LDA #%00001111
   AND buttons
@@ -414,9 +427,6 @@ handle_shoot:
   BEQ @continue
   RTS
 @continue:
-  LDA #%01000000
-  ORA gamestate
-  STA gamestate
   LDA #GUN_COOLDOWN
   STA timer::gun_cooldown
   JSR spawn_bullet
@@ -424,12 +434,12 @@ handle_shoot:
   RTS
 
 handle_pause:
-  BIT gamestate
-  BVS @return
   LDA #$FF
   STA $0100
-  LDA #%01000010 ; Game paused, button pressed
-  ORA gamestate
+  BIT gamestate
+  BVS @return ; Button flag active, return
+  LDA #%00000100 ; Toggle pause state
+  EOR gamestate
   STA gamestate
 @return:
   RTS
